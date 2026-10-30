@@ -53,7 +53,7 @@ internal static class Program
         {
             type = "upsert", id = "timer", title = "专注计时 · 测试",
             body = $"{(paused ? "已暂停" : "运行中")} · {elapsed} 秒", icon = "timer", progress = elapsed / 100.0,
-            actions = new[] { new { id = "toggle", label = paused ? "继续" : "暂停" }, new { id = "reset", label = "重置" } }
+            actions = new[] { new { id = "toggle", label = paused ? "继续" : "暂停" }, new { id = "reset", label = "重置" }, new { id = "finish", label = "完成" } }
         });
         string? hello = await Console.In.ReadLineAsync();
         if (hello is null) return 1;
@@ -88,6 +88,7 @@ internal static class Program
                     {
                         case "toggle": paused = !paused; break;
                         case "reset": elapsed = 0; paused = false; break;
+                        case "finish": elapsed = 99; paused = true; break;
                     }
                     Upsert();
                 }
@@ -151,12 +152,15 @@ internal static class Program
                 System.Windows.Automation.AutomationProperties.GetName(button) == "关闭提示"),
                 "Plugin cards expose their own actions without an ineffective close button");
             Assert(VisibleButtonsFit(), "Plugin card actions fit within the visible island");
+            Assert(Descendants<Button>(Element<ItemsControl>("EventItems")).Count(button => button.IsVisible) == 3,
+                "All three plugin actions remain visible in the compact card layout");
             Capture("plugin-automatic.png");
 
             Invoke("OpenActivity");
             await Settle();
-            Assert((bool)Field("_pluginsTab").GetValue(_window)! && Element<Button>("PluginsTab").IsVisible,
-                "Clicking the automatic plugin opens the plugin activity tab");
+            Assert((bool)Field("_pluginsTab").GetValue(_window)! && Element<Button>("PluginsTab").Visibility == Visibility.Collapsed &&
+                Descendants<Button>(Element<ItemsControl>("PluginTabItems")).Single().Content as string == "专注计时器 · 测试",
+                "Clicking the automatic plugin opens its independently named activity tab");
             FindAction("暂停").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Until(() => _manager.Cards.Single().Body.StartsWith("已暂停"));
             await Settle();
@@ -201,12 +205,18 @@ internal static class Program
             Invoke("OpenActivity");
             Element<Button>("NotificationsTab").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Settle();
-            Rect tabs = Rect.Empty;
-            foreach (var tab in Descendants<Button>(Element<FrameworkElement>("ActivityTabs")).Where(button => button.IsVisible)) tabs.Union(Bounds(tab));
+            var tabScroll = Element<ScrollViewer>("ActivityTabScroll");
+            Rect tabs = Bounds(tabScroll);
             Rect controls = Bounds((FrameworkElement)VisualTreeHelper.GetParent(Element<Button>("ClearNotificationsButton")));
-            _headerGeometry = new { tabs = tabs.ToString(), controls = controls.ToString(), gap = controls.Left - tabs.Right,
+            _headerGeometry = new { tabs = tabs.ToString(), controls = controls.ToString(), gap = controls.Left - tabs.Right, scrollableWidth = tabScroll.ScrollableWidth,
                 shell = Bounds(Element<FrameworkElement>("Island")).ToString() };
             Assert(tabs.Right + 4 <= controls.Left, "Three activity tabs remain separated from clear and window controls");
+            tabScroll.ScrollToRightEnd();
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            var pluginTab = Descendants<Button>(Element<ItemsControl>("PluginTabItems")).Single();
+            Assert(Bounds(pluginTab).Right <= Bounds(tabScroll).Right + .5,
+                "The horizontal tab viewport can expose the complete plugin tab without covering window controls");
+            tabScroll.ScrollToLeftEnd();
             Assert(VisibleButtonsFit(), "The single notification header and actions fit within the shell");
             Capture("notification-three-tabs.png");
 

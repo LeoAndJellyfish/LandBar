@@ -69,19 +69,22 @@ internal static class Program
                 Get<AppSettings>("_settings").AutoCollapseSeconds = 5;
                 Invoke("ApplyAutoCollapseSetting");
                 await Task.Delay(1000);
+                // Keep the owned test window away from the user's stationary physical pointer.
+                // Geometry-based hover below uses local synthetic points without moving system input.
+                _window.Left = -3000; _window.Top = -3000;
                 _hostBefore = HostBounds();
 
                 // Exercise the real DispatcherTimer once rather than inferring its behavior from math.
                 Invoke("OpenActivity");
                 await Task.Delay(1000);
-                Set("_hover", true);
+                Invoke("UpdatePointerHover", new Point(0, 0));
                 Invoke("RecordInteraction");
                 var deadline = Idle.Deadline!.Value;
                 int initialHistory = Scheduler.History.Count;
                 var actual = Stopwatch.StartNew();
                 while (View != "Automatic" && actual.ElapsedMilliseconds < 6500) await Task.Delay(20);
                 _actualIdleMilliseconds = actual.Elapsed.TotalMilliseconds;
-                Check("Real timer collapses stationary hover at five seconds", View == "Automatic" &&
+                Check("Real timer collapses at five seconds with the pointer outside", View == "Automatic" &&
                     _actualIdleMilliseconds is >= 4900 and < 5700,
                     new { elapsedMilliseconds = _actualIdleMilliseconds, deadlineMilliseconds = deadline.TotalMilliseconds, hover = Get<bool>("_hover") });
                 Timer.Stop();
@@ -104,6 +107,16 @@ internal static class Program
                         new { view = View, compact = IsCompact() });
                 }
 
+                Invoke("Collapse");
+                await Task.Delay(850);
+                var stationaryExpansionPoint = new Point(Get<FrameworkElement>("HoverSurface").ActualWidth / 2, 100);
+                Invoke("UpdateInactivity", stationaryExpansionPoint);
+                Check("A stationary point below the compact pill is outside the visible island", !Get<bool>("_hover"), new { point = stationaryExpansionPoint.ToString() });
+                Invoke("OpenActivity");
+                await Task.Delay(850);
+                Invoke("UpdateInactivity", stationaryExpansionPoint);
+                Check("Expansion beneath a stationary pointer suspends inactivity", Get<bool>("_hover") && Idle.Deadline is null, new { point = stationaryExpansionPoint.ToString() });
+                Invoke("UpdatePointerHover", new Point(0, 0));
                 ChangeView("Settings");
                 await Task.Delay(950);
                 await CheckInput("Mouse press extends inactivity", () => RaiseMouse(Mouse.PreviewMouseDownEvent));
@@ -114,21 +127,34 @@ internal static class Program
                     PresentationSource.FromVisual(_window), Environment.TickCount, Key.F6) { RoutedEvent = Keyboard.PreviewKeyDownEvent }));
 
                 var clip = Get<System.Windows.Media.RectangleGeometry>("_surfaceClip");
+                var roundedCorner = clip.Rect.TopLeft + new Vector(1, 1);
+                Invoke("RecordPointerInteraction", roundedCorner);
+                Check("Transparent pixels inside the rounded corner do not suspend inactivity", !Get<bool>("_hover") && Idle.Deadline is not null,
+                    new { corner = roundedCorner.ToString() });
                 var inside = new Point(clip.Rect.X + clip.Rect.Width / 2, Math.Min(60, clip.Rect.Bottom - 10));
                 Invoke("RecordPointerInteraction", inside);
                 var pointerDeadline = Idle.Deadline;
+                Check("Entering the visible island suspends its inactivity deadline", pointerDeadline is null && Get<bool>("_hover"), new { hover = Get<bool>("_hover") });
                 await Task.Delay(30);
                 Invoke("RecordPointerInteraction", inside);
-                Check("Stationary pointer does not extend deadline", Idle.Deadline == pointerDeadline, new { deadline = pointerDeadline?.TotalMilliseconds });
+                Invoke("UpdateInactivity", inside);
+                Check("Stationary hover keeps the deadline disarmed", Idle.Deadline is null && View == "Settings", new { deadline = Idle.Deadline?.TotalMilliseconds });
                 Invoke("RecordPointerInteraction", new Point(0, 0));
-                Check("Transparent host movement does not extend deadline", Idle.Deadline == pointerDeadline, new { deadline = Idle.Deadline?.TotalMilliseconds });
+                var leaveDeadline = Idle.Deadline;
+                Check("Leaving the visible island starts a complete five-second interval", leaveDeadline >= Clock.Elapsed + TimeSpan.FromMilliseconds(4900), new { deadline = leaveDeadline?.TotalMilliseconds });
+                Invoke("RecordPointerInteraction", new Point(1, 1));
+                Check("Moving through the transparent host does not extend the leave deadline", Idle.Deadline == leaveDeadline, new { deadline = Idle.Deadline?.TotalMilliseconds });
                 await Task.Delay(30);
                 Invoke("RecordPointerInteraction", inside + new Vector(4, 0));
-                Check("Movement within island extends deadline", Idle.Deadline > pointerDeadline, new { previous = pointerDeadline?.TotalMilliseconds, current = Idle.Deadline?.TotalMilliseconds });
+                Check("Reentering the visible island suspends the new deadline", Idle.Deadline is null, new { deadline = Idle.Deadline?.TotalMilliseconds });
+                Idle.Reset(Clock.Elapsed - TimeSpan.FromMilliseconds(5001));
+                Invoke("UpdateInactivity", inside);
+                Check("A visible stationary pointer prevents an already due collapse", View == "Settings" && Idle.Deadline is null, new { view = View });
 
                 var periodicDeadline = Idle.Deadline;
                 for (int i = 0; i < 3; i++) { Invoke("Render"); Invoke("Navigate", 1); await Task.Delay(30); }
                 Check("Render and page rotation do not extend deadline", Idle.Deadline == periodicDeadline, new { deadline = Idle.Deadline?.TotalMilliseconds });
+                Invoke("UpdatePointerHover", new Point(0, 0));
 
                 _window.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(_window), Environment.TickCount, Key.Escape)
                     { RoutedEvent = Keyboard.PreviewKeyDownEvent });
@@ -156,7 +182,7 @@ internal static class Program
                 await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
                 Check("A newly accepted source event extends inactivity", Idle.Deadline > sourceDeadline && Scheduler.TotalCount == 2,
                     new { active = Scheduler.TotalCount, deadline = Idle.Deadline?.TotalMilliseconds });
-                Set("_hover", true);
+                Invoke("UpdatePointerHover", new Point(0, 0));
                 Idle.Reset(Clock.Elapsed - TimeSpan.FromMilliseconds(5001));
                 Invoke("OnTick", null, EventArgs.Empty);
                 await Task.Delay(900);

@@ -30,7 +30,7 @@ foreach ($file in Get-ChildItem -LiteralPath $appSource -Recurse -File) {
     $allowed = $file.Extension -in @('.dll', '.exe') -or
         $relative -in @('LandBar.deps.json', 'LandBar.runtimeconfig.json', 'LICENSE.txt', 'ThirdPartyNotices.txt') -or
         ($relative -like 'Assets\*' -and $file.Extension -in @('.png', '.txt', '.md', '.ttf', '.ico')) -or
-        ($relative -like 'PluginExamples\focus-timer\*' -and $file.Name -in @('plugin.json', 'plugin.ps1', 'README.md'))
+        (($relative -like 'PluginExamples\focus-timer\*' -or $relative -like 'PluginExamples\pixel-pet\*') -and $file.Name -in @('plugin.json', 'plugin.ps1', 'README.md'))
     if (-not $allowed) {
         if ($file.Extension -eq '.pdb') { continue }
         throw "Unexpected publish output requires a packaging review: $relative"
@@ -100,6 +100,9 @@ if ($binaryVersion -ne "$Version.0") { throw "Packaged binary version is $binary
 if ($manifest.Package.Identity.Version -ne "$Version.0") { throw 'Identity version does not match release version.' }
 foreach ($required in @('app/LandBar.exe', 'app/LandBar.dll', 'app/LandBar.Plugins.dll', 'app/coreclr.dll', 'app/Assets/Fonts/OFL.txt', 'app/PluginExamples/focus-timer/plugin.json', 'app/PluginExamples/focus-timer/plugin.ps1', 'LandBar.identity.msix', 'identity/AppxManifest.xml')) {
     if (-not (Test-Path -LiteralPath (Join-Path $payloadPath $required))) { throw "Release file missing: $required" }
+}
+foreach ($required in @('plugin.json', 'plugin.ps1', 'README.md')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $payloadPath "app/PluginExamples/pixel-pet/$required"))) { throw "Pixel example is missing $required." }
 }
 
 # Stable ordering and timestamps make the archive independent of file-copy times.

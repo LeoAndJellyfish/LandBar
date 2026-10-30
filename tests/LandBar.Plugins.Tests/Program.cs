@@ -35,7 +35,21 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Forced stop reclaims the owned process tree", ProcessTree),
     ("Discovery bounds the number of local directories", DiscoveryLimit),
     ("Windows Job lifetime reclaims descendants after normal and abnormal parent exit", ParentExitTree),
-    ("Bundled Windows PowerShell 5.1 sample displays Chinese, responds to actions and exits", BundledSample)
+    ("Bundled Windows PowerShell 5.1 sample displays Chinese, responds to actions and exits", BundledSample),
+    ("Declarative views preserve their nodes and dispatch validated actions", ViewTests.Lifecycle),
+    ("Unchanged views skip refreshes and expose immutable trees", ViewTests.NoOp),
+    ("View identity and withdrawal remain scoped to each provider", ViewTests.Isolation),
+    ("Every supported host slot is accepted without creating notification cards", ViewTests.Slots),
+    ("Invalid declarative node schemas fault only their provider", ViewTests.Validation),
+    ("Node counts and nesting enforce their precise inclusive limits", ViewTests.Bounds),
+    ("Sprite palettes, pixel indices, frame sizes and frame rates stay bounded", ViewTests.Sprites),
+    ("Per-provider and aggregate view counts stay bounded", ViewTests.ViewLimits),
+    ("View contributions disappear on fault, EOF, exit, removal and disposal", ViewTests.Withdrawal),
+    ("Selected-slot context uses real pipes and rejects invalid or oversized data", ViewTests.Context),
+    ("Idle slot root dimensions retain their inclusive display limits", ViewTests.IdleBounds),
+    ("Providers publish independent named tabs and title-only updates", ViewTests.Tabs),
+    ("Tab titles enforce single-line UTF16 limits with Chinese and emoji", ViewTests.TabTitles),
+    ("Bundled pixel animation sample publishes views and handles palette changes", ViewTests.PixelSample)
 };
 int failures = 0;
 foreach (var test in tests)
@@ -470,6 +484,7 @@ static async Task<int> Fixture(string mode)
     if (mode == "silenthello") { await Task.Delay(60000); return 0; }
     await Send(new { type = "hello", protocolVersion = mode == "wronghello" ? 2 : 1 });
     if (mode == "wronghello") { await Task.Delay(5000); return 0; }
+    if (mode.StartsWith("view", StringComparison.Ordinal)) return await ViewFixture.Run(mode);
     if (mode == "closeoutput") { Console.Out.Flush(); NativeOutput.Close(); await Task.Delay(60000); return 0; }
     if (mode == "badjson") { Console.WriteLine("{bad"); await Task.Delay(5000); return 0; }
     if (mode == "oversize") { Console.WriteLine(new string('x', 20000)); await Task.Delay(5000); return 0; }

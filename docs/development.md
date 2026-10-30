@@ -36,7 +36,7 @@ dotnet run --project src/LandBar -c Release -- --demo --preview
 ./scripts/Test.ps1 -IncludeDesktop
 ```
 
-该选项额外运行空闲形态、插件交互、预览、输入、自动收起、过渡与置顶检查。检查会创建隔离测试窗口，需要可交互的 Windows 桌面会话。系统媒体检查单独运行：
+该选项额外运行空闲形态、媒体静默更新、悬停计时、插件交互与声明式视图、预览、输入、自动收起、过渡与置顶检查。检查会创建隔离测试窗口，需要可交互的 Windows 桌面会话。系统媒体检查单独运行：
 
 ```powershell
 dotnet run --project tests/LandBar.Media.Tests -c Release
@@ -53,7 +53,7 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 
 `Build.ps1` 先请求当前 `dist/app` 中的 LandBar 正常退出，再发布自包含程序，构建稀疏身份包并整理安装脚本。普通本地构建产物位于 `dist`。
 
-`Package.ps1` 从独立构建目录按白名单整理发布文件，保留正在运行的 `dist` 实例。默认生成 `releases/LandBar-v<Version>-win-x64.zip` 与 `releases/SHA256SUMS.txt`。可使用 `-Version v0.4.0` 校验指定版本，或通过 `-OutputDirectory` 指定输出目录。
+`Package.ps1` 从独立构建目录按白名单整理发布文件，保留正在运行的 `dist` 实例。默认生成 `releases/LandBar-v<Version>-win-x64.zip` 与 `releases/SHA256SUMS.txt`。可使用 `-Version v0.5.0` 校验指定版本，或通过 `-OutputDirectory` 指定输出目录。
 
 归档包含应用、身份文件、安装／启动／卸载脚本、使用文档、图片及第三方声明。本地通知、封面缓存、运行诊断和历史构建产物留在发布包之外。
 
@@ -80,7 +80,7 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 
 1. 在 `src/LandBar/LandBar.csproj` 更新 `Version`，提交代码与相应说明。
 2. 确认该提交的 Windows CI 通过。
-3. 创建与版本一致的 `v<Version>` 标签，例如 `v0.4.0`，推送该标签。
+3. 创建与版本一致的 `v<Version>` 标签，例如 `v0.5.0`，推送该标签。
 4. [Release 工作流](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/release.yml)校验标签与项目版本，再构建并上传 ZIP 和校验记录。
 5. [发布校验工作流](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/verify-release.yml)从公开地址下载 ZIP 与校验文件，检查版本、归档内容和 SHA-256；也可在 Actions 中指定标签手动运行。
 
@@ -112,6 +112,8 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 
 ## 插件开发
 
-插件通过独立进程接入，使用 stdin/stdout 交换 UTF-8 JSON Lines。插件可以发布和撤回卡片、更新进度并接收按钮事件。宿主负责卡片布局与动画，插件负责数据和业务逻辑。
+插件通过独立进程接入，使用 stdin/stdout 交换 UTF-8 JSON Lines。插件可以发布和撤回卡片、创建独立命名标签，或通过声明式节点替换页面、添加收起态组件。宿主负责卡片布局与动画，插件负责数据和业务逻辑。
 
-清单、协议、开发示例及限制见 [插件开发文档](plugins.md)，可运行的专注计时器位于 `samples/focus-timer`。本地插件目录与显示设置独立保留，更新发布包后仍可使用。
+清单、协议、开发示例及限制见 [插件开发文档](plugins.md)，可运行的示例位于 `samples/focus-timer` 和 `samples/pixel-pet`。本地插件目录与显示设置独立保留，更新发布包后仍可使用。
+
+用户插件目录位于 `%LOCALAPPDATA%\LandBar\Plugins`。构建与打包只收录仓库中列出的两个公开示例，用户插件、视图绑定和个人配置留在本机。

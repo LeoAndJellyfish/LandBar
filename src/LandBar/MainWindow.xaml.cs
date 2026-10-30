@@ -71,6 +71,7 @@ public partial class MainWindow : Window
         _scheduler = _liveScheduler;
         _demo = demo; _smoke = smoke; _capturePath = capturePath;
         InitializeComponent();
+        ConfigureViewPresenters();
         Icon = BitmapFrame.Create(new Uri(ApplicationBrand.IconUri));
         IslandViewport.Clip = _surfaceClip;
         PreviewMouseMove += TrackPointerInteraction;
@@ -107,7 +108,7 @@ public partial class MainWindow : Window
             _motion.Completed += () =>
             {
                 // Layout callbacks never rebind cards. Hover is checked against the final shape.
-                _hover = HoverSurface.IsMouseOver;
+                UpdatePointerHover(Mouse.GetPosition(HoverSurface));
                 _topmost?.RequestCheck();
             };
             PositionWindow();
@@ -183,6 +184,8 @@ public partial class MainWindow : Window
                     notificationHistoryCount = _scheduler.History.Count(item => item.Kind == IslandEventKind.Notification),
                     notificationSelfTestReceived = _scheduler.History.Any(item => item.Kind == IslandEventKind.Notification && item.Title == "LandBar 通知测试"),
                     sessionCount = _sessions.Count, playingCount = _sessions.Count(s => s.IsPlaying), timerTicks = _ticks,
+                    runningPluginCount = _plugins?.Plugins.Count(plugin => plugin.State == PluginState.Running) ?? 0,
+                    pluginViewCount = _plugins?.Views.Count ?? 0, pluginTabCount = PluginTabs.Count,
                     windowWidth = ActualWidth, windowHeight = ActualHeight, animationCompleted = _motion?.IsAnimating == false,
                     islandWidth = Island.ActualWidth, islandHeight = Island.ActualHeight, fixedNativeHost = true,
                     renderTier = RenderCapability.Tier >> 16, fontFamily = FontFamily.Source,
@@ -214,12 +217,12 @@ public partial class MainWindow : Window
 
     private void Receive(IslandEvent item)
     {
-        if (_stop.IsCancellationRequested) return;
+        if (_stop.IsCancellationRequested || item.Kind == IslandEventKind.Media) return;
         Dispatcher.BeginInvoke(() =>
         {
             if (_settings.Quiet || !_liveScheduler.Push(item)) return;
             if (_exampleMode) return;
-            _inactivity.Reset(_clock.Elapsed);
+            RecordInteraction();
             Render();
         });
     }
@@ -228,8 +231,7 @@ public partial class MainWindow : Window
     {
         _plugins?.Expire(DateTimeOffset.UtcNow);
         var now = _clock.Elapsed;
-        if (_view == IslandView.Automatic && _scheduler.TotalCount == 0) _inactivity.Stop();
-        else if (_inactivity.IsExpired(now)) Collapse();
+        UpdateInactivity(Mouse.GetPosition(HoverSurface));
         _scheduler.SetPaused(_hover || _view != IslandView.Automatic || _settings.Quiet || _contentTransition?.IsTransitioning == true);
         int count = _scheduler.TotalCount, page = _scheduler.CurrentPage;
         _scheduler.Tick(now - _previousTick);
@@ -269,6 +271,7 @@ public partial class MainWindow : Window
         OffsetButton.Content = $"顶部间距：{_settings.TopOffset}";
         RenderAutoCollapseOptions();
         RenderPluginManagement();
+        RenderPluginTabs();
         var sessions = OrderedSessions;
         var history = NotificationHistory;
         bool automaticCards = _view == IslandView.Automatic && !_settings.Quiet && _scheduler.TotalCount > 0;
@@ -288,7 +291,7 @@ public partial class MainWindow : Window
             }
             else if (_pluginsTab)
             {
-                var pluginCards = CurrentPluginCards;
+                var pluginCards = ActivePluginCards;
                 pageCount = Math.Max(1, (pluginCards.Count + 1) / 2);
                 _page = Math.Clamp(_page, 0, pageCount - 1);
                 cards.AddRange(pluginCards.Skip(_page * 2).Take(2).Select(FromPlugin));
@@ -306,21 +309,27 @@ public partial class MainWindow : Window
                 cards.AddRange(history.Skip(_page * 2).Take(2).Select(item => FromEvent(item, sessions)));
             }
         }
-        double compactWidth = sessions.Count > 1 ? 208 : sessions.Count > 0 ? 180 : 112;
-        double width = Math.Min(availableWidth, compact ? compactWidth : _view == IslandView.ControlCenter ? 396 :
-            _view is IslandView.Settings or IslandView.PluginSettings ? 448 : cards.Count > 1 ? 792 : 464);
-        double height = compact ? 44 : _view == IslandView.ControlCenter ? 300 :
-            _view == IslandView.Settings ? 488 : _view == IslandView.PluginSettings ? Math.Min(488, 320 + (_plugins?.Plugins.Count ?? 0) * 76) : cards.Count == 0 ? 168 :
-            cards.Any(c => c.IsPlugin && (c.PluginActions.Count > 0 || c.ProgressVisibility == Visibility.Visible)) ? 280 :
-            cards.Any(c => c.IsMedia) ? (cards.Count > 1 ? 280 : 288) : 208;
-        if (activity && pageCount > 1) height += 28;
+        double compactWidth = CompactPluginWidth(sessions.Count > 1 ? 208 : sessions.Count > 0 ? 180 : 112);
+        double width = Math.Min(availableWidth, compact ? compactWidth : _view == IslandView.ControlCenter ? 356 :
+            _view is IslandView.Settings or IslandView.PluginSettings ? 400 : cards.Count > 1 ? 680 : 400);
+        double height = compact ? 44 : _view == IslandView.ControlCenter ? 280 :
+            _view == IslandView.Settings ? 456 : _view == IslandView.PluginSettings ? Math.Min(456, 296 + (_plugins?.Plugins.Count ?? 0) * 76) : cards.Count == 0 ? 148 :
+            cards.Any(c => c.IsPlugin && (c.PluginActions.Count > 0 || c.ProgressVisibility == Visibility.Visible)) ? 240 :
+            cards.Any(c => c.IsMedia) ? 240 : 180;
+        var pageOverride = PagePluginView();
+        if (!compact && pageOverride is not null)
+        {
+            width = Math.Min(availableWidth, Math.Clamp((pageOverride.Root.Width ?? 356) + (activity ? 44 : 32), 320, 680));
+            height = Math.Min(availableHeight, Math.Clamp((pageOverride.Root.Height ?? 184) + (activity ? 72 : 64), 180, 456));
+        }
+        if (activity && pageOverride is null && pageCount > 1) height += 28;
         height = Math.Min(height, availableHeight);
         foreach (var (card, index) in cards.Select((value, index) => (value, index)))
         {
             card.CardWidth = (width - 14) / Math.Max(1, cards.Count);
             card.Divider = new Thickness(index > 0 ? 1 : 0, 0, 0, 0);
-            card.CoverSize = card.IsMedia ? cards.Count > 1 ? 84 : 92 : 60;
-            card.TitleSize = cards.Count > 1 ? 20 : 22;
+            card.CoverSize = card.IsMedia ? cards.Count > 1 ? 72 : 76 : 48;
+            card.TitleSize = cards.Count > 1 ? 18 : 20;
         }
         bool viewChanged = _lastView != _view || _lastCompact != compact;
         bool shapeChanged = _contentTransition is null || Math.Abs(_contentTransition.TargetWidth - width) > 0.5 ||
@@ -328,7 +337,7 @@ public partial class MainWindow : Window
         var targetView = _view;
         bool showNotifications = _notificationsTab;
         bool showPlugins = _pluginsTab;
-        string key = $"{targetView}:{showNotifications}:{showPlugins}:{width}:{_settings.HideContent}:" + string.Join("|", cards.Select(c => c.Key));
+        string key = $"{targetView}:{showNotifications}:{showPlugins}:{_activePluginTabKey}:{width}:{_settings.HideContent}:" + string.Join("|", cards.Select(c => c.Key));
         int page = automaticCards ? Math.Max(0, _scheduler.CurrentPage - 1) : _page;
         string pagerKey = $"{pageCount}:{page}";
         void ApplyPresentation()
@@ -362,6 +371,7 @@ public partial class MainWindow : Window
                 PageDots.ItemsSource = Enumerable.Range(0, pageCount).Select(i => Brush(i == page ? "#D5D5DC" : "#41414B")).ToArray();
             }
             RenderCompact(sessions);
+            PresentPluginViews(compact, activity, pageOverride, width, height);
             var scale = VisualTreeHelper.GetDpi(this);
             var area = GetScreen().WorkingArea;
             var target = NativeWindowBounds.Calculate(area.Left, area.Top, area.Width, _settings.TopOffset,
@@ -459,7 +469,7 @@ public partial class MainWindow : Window
     {
         _view = view; _page = 0;
         if (view == IslandView.Automatic) _inactivity.Stop();
-        else _inactivity.Reset(_clock.Elapsed);
+        else RecordInteraction();
         if (!_demo)
         {
             _settings.OnboardingComplete = true;
@@ -470,14 +480,22 @@ public partial class MainWindow : Window
     private void OpenActivity()
     {
         bool openingPlugin = _view == IslandView.Automatic && _scheduler.VisibleItems.FirstOrDefault()?.Kind == IslandEventKind.Plugin;
+        bool openingNotification = _view == IslandView.Automatic && _scheduler.VisibleItems.FirstOrDefault()?.Kind == IslandEventKind.Notification;
+        if (openingPlugin)
+        {
+            string? provider = _scheduler.VisibleItems.FirstOrDefault()?.AppId;
+            _activePluginTabKey = PluginTabs.FirstOrDefault(tab => tab.PluginId == provider && tab.View is null)?.Key;
+        }
         _activityOrder.Clear();
-        _notificationsTab = !openingPlugin && OrderedSessions.Count == 0 && NotificationHistory.Count > 0;
-        _pluginsTab = openingPlugin || OrderedSessions.Count == 0 && !_notificationsTab && CurrentPluginCards.Count > 0;
+        _notificationsTab = openingNotification || !openingPlugin && OrderedSessions.Count == 0 && NotificationHistory.Count > 0;
+        _pluginsTab = openingPlugin || OrderedSessions.Count == 0 && !_notificationsTab && PluginTabs.Count > 0;
+        if (_pluginsTab && ActivePluginTab is null) _activePluginTabKey = PluginTabs.FirstOrDefault()?.Key;
         ChangeView(IslandView.Activity);
     }
     private void Collapse() { _scheduler.Clear(); ChangeView(IslandView.Automatic); }
     private void RecordInteraction()
     {
+        if (_hover) { _inactivity.Stop(); return; }
         if (_view != IslandView.Automatic || _scheduler.TotalCount > 0)
             _inactivity.Reset(_clock.Elapsed);
     }
@@ -490,7 +508,22 @@ public partial class MainWindow : Window
     {
         bool moved = _lastPointerPosition is not { } previous || position != previous;
         _lastPointerPosition = position;
-        if (moved && _surfaceClip.FillContains(position)) RecordInteraction();
+        UpdatePointerHover(position);
+        if (moved && _hover) RecordInteraction();
+    }
+    private void UpdatePointerHover(Point position)
+    {
+        bool inside = _surfaceClip.FillContains(position);
+        if (_hover == inside) { if (inside) _inactivity.Stop(); return; }
+        _hover = inside;
+        if (inside) { _inactivity.Stop(); _scheduler.SetPaused(true); }
+        else if (_view != IslandView.Automatic || _scheduler.TotalCount > 0) _inactivity.Reset(_clock.Elapsed);
+    }
+    private void UpdateInactivity(Point position)
+    {
+        UpdatePointerHover(position);
+        if (_view == IslandView.Automatic && _scheduler.TotalCount == 0) _inactivity.Stop();
+        else if (_inactivity.IsExpired(_clock.Elapsed)) Collapse();
     }
     private void ToggleActivity_Click(object sender, MouseButtonEventArgs e) { OpenActivity(); e.Handled = true; }
     private void ActivitySurface_Click(object sender, MouseButtonEventArgs e) { if (_view == IslandView.Automatic) OpenActivity(); }
@@ -508,10 +541,15 @@ public partial class MainWindow : Window
         RecordInteraction(); Render();
         e.Handled = true;
     }
-    private void Island_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e) { _hover = true; _scheduler.SetPaused(true); }
-    private void Island_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e) { _hover = false; }
+    private void Island_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e) => UpdatePointerHover(e.GetPosition(HoverSurface));
+    private void Island_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e) => UpdatePointerHover(e.GetPosition(HoverSurface));
     private void Island_MouseWheel(object sender, MouseWheelEventArgs e)
     {
+        if (ActivityTabScroll.IsMouseOver)
+        {
+            ActivityTabScroll.ScrollToHorizontalOffset(Math.Max(0, ActivityTabScroll.HorizontalOffset - e.Delta));
+            e.Handled = true; return;
+        }
         if (_view is IslandView.Settings or IslandView.ControlCenter or IslandView.PluginSettings) return;
         Navigate(e.Delta > 0 ? -1 : 1); e.Handled = true;
     }
@@ -520,7 +558,7 @@ public partial class MainWindow : Window
         if (_view == IslandView.Automatic) { if (direction > 0) _scheduler.NextPage(); else _scheduler.PreviousPage(); }
         else
         {
-            int count = _pluginsTab ? CurrentPluginCards.Count : _notificationsTab ? NotificationHistory.Count : OrderedSessions.Count;
+            int count = _pluginsTab ? ActivePluginCards.Count : _notificationsTab ? NotificationHistory.Count : OrderedSessions.Count;
             int pages = Math.Max(1, (count + 1) / 2);
             _page = (_page + direction + pages) % pages;
         }
@@ -684,7 +722,7 @@ public partial class MainWindow : Window
         int seconds = _settings.AutoCollapseSeconds;
         _inactivity.Configure(seconds == 0 ? null : TimeSpan.FromSeconds(seconds), _clock.Elapsed);
         _liveScheduler.ExpireVisibleItems = _scheduler.ExpireVisibleItems = seconds != 0;
-        if (_view == IslandView.Automatic && _scheduler.TotalCount == 0) _inactivity.Stop();
+        if (_hover || _view == IslandView.Automatic && _scheduler.TotalCount == 0) _inactivity.Stop();
         RenderAutoCollapseOptions();
     }
     private void RenderAutoCollapseOptions()
@@ -759,6 +797,8 @@ public partial class MainWindow : Window
         _tray.Visible = true;
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("控制中心", null, (_, _) => Dispatcher.Invoke(() => ChangeView(IslandView.ControlCenter)));
+        menu.Items.Add("插件管理（内置）", null, (_, _) => Dispatcher.Invoke(OpenBuiltinPluginManagement));
+        menu.Items.Add("恢复内置界面", null, (_, _) => Dispatcher.Invoke(RestoreBuiltinViews));
         menu.Items.Add("退出", null, (_, _) => Dispatcher.Invoke(Exit));
         _tray.ContextMenuStrip = menu;
         _tray.MouseClick += (_, args) => { if (args.Button == Forms.MouseButtons.Left) Dispatcher.Invoke(() => ChangeView(IslandView.ControlCenter)); };
@@ -780,7 +820,7 @@ public partial class MainWindow : Window
         if (_closing) return;
         _closing = true; _timer.Stop(); _stop.Cancel(); _topmost?.Dispose(); _contentTransition?.Dispose(); _motion?.Dispose();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= DisplaysChanged;
-        _plugins?.Dispose();
+        DisposePluginViews(); _plugins?.Dispose();
         _notifications.Dispose(); _media.Dispose(); _tray?.ContextMenuStrip?.Dispose(); _tray?.Dispose(); _trayIcon?.Dispose();
         System.Windows.Application.Current.Shutdown();
     }
@@ -795,11 +835,11 @@ public partial class MainWindow : Window
         public string Id { get; } = "";
         public string SessionId { get; } = "";
         public double CardWidth { get; set; }
-        public double SourceWidth => Math.Max(50, CardWidth - 58 - (IsMedia || IsPlugin ? 0 : 32));
+        public double SourceWidth => Math.Max(50, CardWidth - 44 - (IsMedia || IsPlugin ? 0 : 32));
         public Thickness Divider { get; set; }
-        public double CoverSize { get; set; } = 92;
-        public double TitleSize { get; set; } = 22;
-        public Geometry CoverClip => new RectangleGeometry(new Rect(0, 0, CoverSize, CoverSize), 17, 17);
+        public double CoverSize { get; set; } = 76;
+        public double TitleSize { get; set; } = 20;
+        public Geometry CoverClip => new RectangleGeometry(new Rect(0, 0, CoverSize, CoverSize), 14, 14);
         public string Source { get; }
         public string Title { get; }
         public string Body { get; }

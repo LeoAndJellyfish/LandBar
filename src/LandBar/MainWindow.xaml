@@ -77,8 +77,8 @@
       <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
     <Style x:Key="PlayerButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-      <Setter Property="Width" Value="46"/>
-      <Setter Property="Height" Value="46"/>
+      <Setter Property="Width" Value="40"/>
+      <Setter Property="Height" Value="40"/>
       <Setter Property="Padding" Value="0"/>
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="VerticalAlignment" Value="Center"/>
@@ -137,10 +137,10 @@
     </Style>
     <DataTemplate x:Key="CardTemplate">
       <Border Width="{Binding CardWidth}" Padding="5,0,5,0">
-        <Border Background="{Binding AmbientBrush}" CornerRadius="24" Padding="18,9,18,14">
+        <Border Background="{Binding AmbientBrush}" CornerRadius="20" Padding="14,6,14,10">
           <Grid>
             <Grid.RowDefinitions>
-              <RowDefinition Height="26"/>
+              <RowDefinition Height="22"/>
               <RowDefinition Height="Auto"/>
               <RowDefinition Height="Auto"/>
               <RowDefinition Height="Auto"/>
@@ -149,27 +149,27 @@
               <Ellipse Width="5" Height="5" Fill="{Binding StatusColor}" Margin="0,0,7,0"/>
               <TextBlock Text="{Binding Source}" Foreground="#B8B8C4" FontSize="14" TextTrimming="CharacterEllipsis" MaxWidth="{Binding SourceWidth}"/>
             </StackPanel>
-            <Button Style="{StaticResource IconButton}" Foreground="#91919C" HorizontalAlignment="Right" Tag="{Binding Id}" Visibility="{Binding DismissVisibility}" Click="Dismiss_Click" AutomationProperties.Name="关闭提示">
+            <Button Style="{StaticResource IconButton}" Width="28" Height="28" Foreground="#91919C" HorizontalAlignment="Right" Tag="{Binding Id}" Visibility="{Binding DismissVisibility}" Click="Dismiss_Click" AutomationProperties.Name="关闭提示">
               <Path Style="{StaticResource LineIcon}" Data="M4,4 L12,12 M12,4 L4,12"/>
             </Button>
-            <Grid Grid.Row="1" Margin="0,14,0,0">
+            <Grid Grid.Row="1" Margin="0,8,0,0">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
               </Grid.ColumnDefinitions>
-              <Border Width="{Binding CoverSize}" Height="{Binding CoverSize}" CornerRadius="17" HorizontalAlignment="Left" Background="{Binding AccentBackground}" Margin="0,0,18,0">
+              <Border Width="{Binding CoverSize}" Height="{Binding CoverSize}" CornerRadius="14" HorizontalAlignment="Left" Background="{Binding AccentBackground}" Margin="0,0,12,0">
                 <Grid>
                   <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets" FontSize="26" Foreground="{Binding Accent}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                   <Image Source="{Binding Artwork}" Stretch="UniformToFill" Clip="{Binding CoverClip}"/>
                 </Grid>
               </Border>
               <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="{Binding TitleSize}" TextTrimming="CharacterEllipsis"/>
-                <TextBlock Text="{Binding Body}" Foreground="#B8B8C4" FontSize="15" Margin="0,7,0,0" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="46" LineHeight="23"/>
+                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="{Binding TitleSize}" LineHeight="26" LineStackingStrategy="BlockLineHeight" TextTrimming="CharacterEllipsis"/>
+                <TextBlock Text="{Binding Body}" Foreground="#B8B8C4" FontSize="15" Margin="0,4,0,0" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="40" LineHeight="20" LineStackingStrategy="BlockLineHeight"/>
               </StackPanel>
             </Grid>
-            <StackPanel Grid.Row="3" Margin="0,14,0,0" Visibility="{Binding PluginVisibility}">
-              <Border Height="4" CornerRadius="2" Background="#292D30" Visibility="{Binding ProgressVisibility}" Margin="0,0,0,12" ClipToBounds="True">
+            <StackPanel Grid.Row="3" Margin="0,10,0,0" Visibility="{Binding PluginVisibility}">
+              <Border Height="4" CornerRadius="2" Background="#292D30" Visibility="{Binding ProgressVisibility}" Margin="0,0,0,8" ClipToBounds="True">
                 <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress, Mode=OneWay}" Foreground="#BEDDC9" Background="Transparent" BorderThickness="0"/>
               </Border>
               <ItemsControl ItemsSource="{Binding PluginActions}">
@@ -183,13 +183,13 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
             </StackPanel>
-            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,17,0,0" Visibility="{Binding MediaVisibility}">
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0" Visibility="{Binding MediaVisibility}">
               <Button Style="{StaticResource PlayerButton}" Tag="{Binding SessionId}" Click="PreviousTrack_Click" IsEnabled="{Binding CanGoPrevious}" AutomationProperties.Name="上一首">
                 <Path Style="{StaticResource MediaIcon}" Data="M 5,5 L 7,5 L 7,19 L 5,19 Z M 18,5 L 8,12 L 18,19 Z" Fill="#D8D8E0">
                   <Path.RenderTransform><ScaleTransform ScaleX="1.285714286" ScaleY="1.285714286"/></Path.RenderTransform>
                 </Path>
               </Button>
-              <Button Style="{StaticResource PlayerButton}" Tag="{Binding SessionId}" Click="PlayPause_Click" IsEnabled="{Binding CanTogglePlayPause}" AutomationProperties.Name="{Binding PlayPauseLabel}" Margin="20,0" Background="#EEEEF1" Width="46" Height="46">
+              <Button Style="{StaticResource PlayerButton}" Tag="{Binding SessionId}" Click="PlayPause_Click" IsEnabled="{Binding CanTogglePlayPause}" AutomationProperties.Name="{Binding PlayPauseLabel}" Margin="18,0" Background="#EEEEF1" Width="40" Height="40">
                 <Path Style="{StaticResource MediaIcon}" Data="{Binding PlayPauseGeometry}" Fill="#111114">
                   <Path.RenderTransform><ScaleTransform ScaleX="1.0625" ScaleY="1.0625"/></Path.RenderTransform>
                 </Path>
@@ -209,7 +209,10 @@
     <p:RoundedClipBorder x:Name="Island" Width="164" Height="44" HorizontalAlignment="Center" VerticalAlignment="Top" UseLayoutRounding="False" SnapsToDevicePixels="False" Background="#08080A" BorderBrush="#2B2B32" BorderThickness="0.7" CornerRadius="22"/>
       <Grid x:Name="IslandViewport" UseLayoutRounding="False" SnapsToDevicePixels="False">
         <Grid x:Name="ContentLayout" HorizontalAlignment="Center" VerticalAlignment="Top" Width="164" Height="44" UseLayoutRounding="False" SnapsToDevicePixels="False">
-          <Grid x:Name="CompactView" UseLayoutRounding="True" SnapsToDevicePixels="True" Background="Transparent" Margin="15,0" MouseLeftButtonUp="ToggleActivity_Click" Cursor="Hand" AutomationProperties.Name="展开活动">
+          <Grid x:Name="CompactView" UseLayoutRounding="True" Background="Transparent" Margin="12,0" MouseLeftButtonUp="ToggleActivity_Click" Cursor="Hand" AutomationProperties.Name="展开活动">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <p:PluginViewPresenter x:Name="PluginIdleLeft" Grid.Column="0" Margin="0,0,8,0" Visibility="Collapsed" VerticalAlignment="Center" MouseLeftButtonUp="PluginIdle_Click"/>
+          <Grid x:Name="BuiltinCompactView" UseLayoutRounding="True" SnapsToDevicePixels="True" Background="Transparent" Grid.Column="1" Margin="0" MouseLeftButtonUp="ToggleActivity_Click" Cursor="Hand" AutomationProperties.Name="展开活动">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="Auto"/>
               <ColumnDefinition Width="*"/>
@@ -253,6 +256,9 @@
             </StackPanel>
             <TextBlock x:Name="ClockLabel" Grid.ColumnSpan="3" Foreground="#D2D2DA" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" FontFamily="{StaticResource AppFont}" FontSize="16" Typography.NumeralAlignment="Tabular"/>
           </Grid>
+            <p:PluginViewPresenter x:Name="PluginIdleContent" Grid.Column="1" Visibility="Collapsed" VerticalAlignment="Center" MouseLeftButtonUp="PluginIdle_Click"/>
+            <p:PluginViewPresenter x:Name="PluginIdleRight" Grid.Column="2" Margin="8,0,0,0" Visibility="Collapsed" VerticalAlignment="Center" MouseLeftButtonUp="PluginIdle_Click"/>
+          </Grid>
           <Grid x:Name="ActivityView" UseLayoutRounding="True" SnapsToDevicePixels="True" Background="Transparent" Visibility="Collapsed" Margin="6,7,6,6" MouseLeftButtonUp="ActivitySurface_Click">
             <Grid.RowDefinitions>
               <RowDefinition Height="44"/>
@@ -260,13 +266,26 @@
               <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <Grid Margin="10,0">
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <ScrollViewer x:Name="ActivityTabScroll" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" CanContentScroll="False" PanningMode="HorizontalOnly" Margin="0,0,8,0">
               <StackPanel x:Name="ActivityTabs" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button x:Name="MediaTab" Content="媒体" Background="#24242B" Foreground="#F2F2F4" Padding="13,6" Click="MediaTab_Click"/>
-                <Button x:Name="NotificationsTab" Content="通知" Background="Transparent" Foreground="#92929F" Padding="13,6" Margin="5,0,0,0" Click="NotificationsTab_Click"/>
-                <Button x:Name="PluginsTab" Content="插件" Background="Transparent" Foreground="#92929F" Padding="13,6" Margin="5,0,0,0" Click="PluginsTab_Click"/>
+                <Button x:Name="MediaTab" Content="媒体" Background="#24242B" Foreground="#F2F2F4" Padding="9,5" Click="MediaTab_Click"/>
+                <Button x:Name="NotificationsTab" Content="通知" Background="Transparent" Foreground="#92929F" Padding="9,5" Margin="4,0,0,0" Click="NotificationsTab_Click"/>
+                <Button x:Name="PluginsTab" Visibility="Collapsed" Content="插件" Background="Transparent" Foreground="#92929F" Padding="9,5" Margin="4,0,0,0" Click="PluginsTab_Click"/>
+                <ItemsControl x:Name="PluginTabItems">
+                  <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate><DataTemplate>
+                    <Button Content="{Binding Title}" Tag="{Binding Key}" Background="{Binding Background}" Foreground="{Binding Foreground}" Padding="9,5" Margin="4,0,0,0" MaxWidth="140" ToolTip="{Binding Title}" Click="PluginTab_Click">
+                      <Button.ContentTemplate><DataTemplate><TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis"/></DataTemplate></Button.ContentTemplate>
+                    </Button>
+                  </DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
               </StackPanel>
-              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                <Button x:Name="ClearNotificationsButton" Content="清空消息" Visibility="Collapsed" Background="Transparent" Foreground="#A2A2AE" FontSize="14" Height="32" Padding="10,0" Margin="0,0,6,0" Click="ClearNotifications_Click" AutomationProperties.Name="清空消息"/>
+              </ScrollViewer>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button x:Name="ClearNotificationsButton" Style="{StaticResource IconButton}" Visibility="Collapsed" Foreground="#A2A2AE" Margin="0,0,4,0" Click="ClearNotifications_Click" ToolTip="清空消息" AutomationProperties.Name="清空消息">
+                  <Path Style="{StaticResource LineIcon}" Data="M3,4.5 L13,4.5 M6,4.5 L6,2.5 L10,2.5 L10,4.5 M4.5,4.5 L5.2,13.5 L10.8,13.5 L11.5,4.5 M6.8,7 L6.8,11 M9.2,7 L9.2,11"/>
+                </Button>
                 <Button Style="{StaticResource IconButton}" Foreground="#93939F" Click="ControlCenter_Click" AutomationProperties.Name="控制中心">
                   <Path Style="{StaticResource LineIcon}" Data="M2,4 L14,4 M2,8 L14,8 M2,12 L14,12 M5,2 L5,6 M11,6 L11,10 M6,10 L6,14"/>
                 </Button>
@@ -282,6 +301,10 @@
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
             </ItemsControl>
+            <ScrollViewer x:Name="ActivityOverrideScroll" Grid.Row="1" Margin="10,3,10,4" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+              <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource DarkScrollBar}"/></ScrollViewer.Resources>
+              <p:PluginViewPresenter x:Name="ActivityOverrideContent"/>
+            </ScrollViewer>
             <TextBlock x:Name="EmptyState" Grid.Row="1" Text="暂无媒体" FontSize="15" Foreground="#8A8A98" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
             <StackPanel x:Name="PageControls" Height="28" Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
               <Button Style="{StaticResource IconButton}" Click="PreviousPage_Click" AutomationProperties.Name="上一组">
@@ -304,10 +327,22 @@
               </Button>
             </StackPanel>
           </Grid>
-          <Grid x:Name="ControlCenterView" UseLayoutRounding="True" SnapsToDevicePixels="True" Visibility="Collapsed" Margin="22,16,22,16">
+          <Grid x:Name="PageOverrideView" Margin="16,12,16,14" Visibility="Collapsed">
+            <Grid.RowDefinitions><RowDefinition Height="40"/><RowDefinition/></Grid.RowDefinitions>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+              <Button Style="{StaticResource IconButton}" Click="ControlCenter_Click" AutomationProperties.Name="返回控制中心"><Path Style="{StaticResource LineIcon}" Data="M10.5,3 L5.5,8 L10.5,13"/></Button>
+              <TextBlock x:Name="OverridePageTitle" Style="{StaticResource PageTitle}" Margin="6,0,0,0"/>
+            </StackPanel>
+            <Button Style="{StaticResource IconButton}" HorizontalAlignment="Right" Click="Collapse_Click" AutomationProperties.Name="收起"><Path Style="{StaticResource LineIcon}" Data="M4,4 L12,12 M12,4 L4,12"/></Button>
+            <ScrollViewer Grid.Row="1" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+              <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource DarkScrollBar}"/></ScrollViewer.Resources>
+              <p:PluginViewPresenter x:Name="PageOverrideContent"/>
+            </ScrollViewer>
+          </Grid>
+          <Grid x:Name="ControlCenterView" UseLayoutRounding="True" SnapsToDevicePixels="True" Visibility="Collapsed" Margin="18,12,18,12">
             <Grid.Resources>
               <Style x:Key="FooterButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                <Setter Property="Height" Value="44"/>
+                <Setter Property="Height" Value="40"/>
                 <Setter Property="Padding" Value="16,0"/>
                 <Setter Property="Background" Value="#18181D"/>
                 <Setter Property="Foreground" Value="#B6B6C2"/>
@@ -323,18 +358,18 @@
             <Button Style="{StaticResource IconButton}" Foreground="#8C8C97" HorizontalAlignment="Right" Click="Collapse_Click" AutomationProperties.Name="收起">
               <Path Style="{StaticResource LineIcon}" Data="M4,4 L12,12 M12,4 L4,12"/>
             </Button>
-            <Grid Grid.Row="1" Height="96" Margin="0,10,0,0">
+            <Grid Grid.Row="1" Height="84" Margin="0,10,0,0">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition/>
                 <ColumnDefinition/>
               </Grid.ColumnDefinitions>
-              <Button AutomationProperties.Name="设置" Click="Settings_Click" Margin="0,0,5,0" Padding="12,14">
+              <Button AutomationProperties.Name="设置" Click="Settings_Click" Margin="0,0,5,0" Padding="10,10">
                 <StackPanel>
                   <TextBlock Text="" FontFamily="Segoe MDL2 Assets" FontSize="22" HorizontalAlignment="Center"/>
                   <TextBlock Text="设置" Margin="0,10,0,0" HorizontalAlignment="Center"/>
                 </StackPanel>
               </Button>
-              <Button x:Name="QuietButton" AutomationProperties.Name="{Binding Text, ElementName=QuietLabel}" Grid.Column="1" Click="Quiet_Click" Margin="5,0,0,0" Padding="12,14">
+              <Button x:Name="QuietButton" AutomationProperties.Name="{Binding Text, ElementName=QuietLabel}" Grid.Column="1" Click="Quiet_Click" Margin="5,0,0,0" Padding="10,10">
                 <StackPanel>
                   <Path Data="M 20,14 A 8,8 0 0 1 10,4 A 8,8 0 1 0 20,14 Z" Fill="#BBCAD5" Width="22" Height="22" Stretch="Uniform" HorizontalAlignment="Center"/>
                   <TextBlock x:Name="QuietLabel" Text="暂停提示" Margin="0,10,0,0" HorizontalAlignment="Center"/>
@@ -343,10 +378,10 @@
             </Grid>
             <Grid Grid.Row="2" Margin="0,10,0,0">
               <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-              <Button x:Name="PreviewButton" Height="46" Content="预览通知与媒体" Click="Demo_Click" Margin="0,0,5,0" Padding="8,0" FontSize="14"/>
-              <Button Grid.Column="1" Height="46" Content="插件管理" Click="PluginsSettings_Click" Margin="5,0,0,0" Padding="8,0"/>
+              <Button x:Name="PreviewButton" Height="42" Content="预览通知与媒体" Click="Demo_Click" Margin="0,0,5,0" Padding="8,0" FontSize="14"/>
+              <Button Grid.Column="1" Height="42" Content="插件管理" Click="PluginsSettings_Click" Margin="5,0,0,0" Padding="8,0"/>
             </Grid>
-            <Grid Grid.Row="3" Margin="0,12,0,0">
+            <Grid Grid.Row="3" Margin="0,10,0,0">
               <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
               <Button x:Name="ReturnActivityButton" Style="{StaticResource FooterButton}" Content="返回活动" Click="OpenActivity_Click" Margin="0,0,5,0"/>
               <Button x:Name="ExitButton" Style="{StaticResource FooterButton}" Grid.Column="1" Content="退出" Foreground="#A4A4B0" Click="Exit_Click" Margin="5,0,0,0"/>
@@ -354,7 +389,7 @@
           </Grid>
           <ScrollViewer x:Name="PluginManagementScroll" UseLayoutRounding="True" SnapsToDevicePixels="True" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource DarkScrollBar}"/></ScrollViewer.Resources>
-            <StackPanel Margin="22,16,22,20">
+            <StackPanel Margin="18,12,18,12">
               <Grid Height="44">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                   <Button Style="{StaticResource IconButton}" Click="ControlCenter_Click" AutomationProperties.Name="返回控制中心"><Path Style="{StaticResource LineIcon}" Data="M10.5,3 L5.5,8 L10.5,13"/></Button>
@@ -362,19 +397,23 @@
                 </StackPanel>
                 <Button Style="{StaticResource IconButton}" HorizontalAlignment="Right" Click="Collapse_Click" AutomationProperties.Name="收起"><Path Style="{StaticResource LineIcon}" Data="M4,4 L12,12 M12,4 L4,12"/></Button>
               </Grid>
-              <TextBlock Text="自定义活动、进度与操作。" Foreground="#B8B8C4" FontSize="15" Margin="0,12,0,8"/>
-              <TextBlock Text="插件以当前 Windows 用户权限运行。请仅启用信任的本地程序。" Foreground="#9999A6" FontSize="14" TextWrapping="Wrap" LineHeight="22" Margin="0,0,0,14"/>
-              <Grid Margin="0,0,0,10">
+              <TextBlock Text="自定义活动、进度与操作。" Foreground="#B8B8C4" FontSize="15" Margin="0,8,0,6"/>
+              <TextBlock Text="插件以当前 Windows 用户权限运行。请仅启用信任的本地程序。" Foreground="#9999A6" FontSize="14" TextWrapping="Wrap" LineHeight="22" Margin="0,0,0,8"/>
+              <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
                 <Button Content="打开插件目录" Click="OpenPluginsFolder_Click" Height="40" Padding="8,0" Margin="0,0,5,0" FontSize="14"/>
                 <Button Grid.Column="1" Content="刷新" Click="RefreshPlugins_Click" Height="40" Padding="8,0" Margin="5,0,0,0" FontSize="14"/>
               </Grid>
-              <Button Content="安装专注计时器示例" Click="InstallPluginExample_Click" Height="40" Margin="0,0,0,14" Padding="10,0" FontSize="14"/>
-              <TextBlock x:Name="PluginManagementHint" Foreground="#BEDDC9" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,10" Visibility="Collapsed"/>
+              <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                <Button Content="计时器示例" Tag="focus-timer" Click="InstallPluginExample_Click" Height="40" Margin="0,0,4,0" Padding="8,0" FontSize="14"/>
+                <Button Grid.Column="1" Content="像素伙伴示例" Tag="pixel-pet" Click="InstallPluginExample_Click" Height="40" Margin="4,0,0,0" Padding="8,0" FontSize="14"/>
+              </Grid>
+              <TextBlock x:Name="PluginManagementHint" Foreground="#BEDDC9" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed"/>
               <ItemsControl x:Name="PluginList">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
-                    <Border CornerRadius="18" Background="#141418" BorderBrush="#25252D" BorderThickness="1" Padding="14" Margin="0,0,0,10">
+                    <Border CornerRadius="18" Background="#141418" BorderBrush="#25252D" BorderThickness="1" Padding="14" Margin="0,0,0,8">
                       <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                         <StackPanel Margin="0,0,10,0">
@@ -388,12 +427,23 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
+              <StackPanel x:Name="PluginViewsSection">
+              <TextBlock Text="界面与空闲插槽" FontSize="15" Margin="0,12,0,10"/>
+              <Button x:Name="PluginViewsToggle" Content="停用插件界面" Click="TogglePluginViews_Click" Height="38" FontSize="14" Margin="0,0,0,8"/>
+              <ItemsControl x:Name="PluginViewChoices"><ItemsControl.ItemTemplate><DataTemplate>
+                <Grid Margin="0,0,0,8">
+                  <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                  <StackPanel><TextBlock Text="{Binding Title}" FontSize="15"/><TextBlock Text="{Binding Source}" Foreground="#9999A6" FontSize="14" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
+                  <Button Grid.Column="1" Content="{Binding ToggleText}" Tag="{Binding Key}" Click="SelectPluginView_Click" FontSize="14" Padding="10,0" Height="36" MinWidth="60" Margin="8,0,0,0"/>
+                </Grid>
+              </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+              </StackPanel>
               <TextBlock x:Name="PluginsEmptyHint" Text="尚未安装插件" Foreground="#8A8A98" FontSize="15" HorizontalAlignment="Center" Margin="0,12,0,0"/>
             </StackPanel>
           </ScrollViewer>
           <ScrollViewer x:Name="SettingsScroll" UseLayoutRounding="True" SnapsToDevicePixels="True" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource DarkScrollBar}"/></ScrollViewer.Resources>
-            <Grid Margin="22,16,22,20">
+            <Grid Margin="18,12,18,16">
               <Grid.RowDefinitions>
                 <RowDefinition Height="44"/>
                 <RowDefinition Height="Auto"/>
@@ -409,9 +459,9 @@
               <Button Style="{StaticResource IconButton}" Foreground="#8C8C97" HorizontalAlignment="Right" Click="Collapse_Click" AutomationProperties.Name="收起">
                 <Path Style="{StaticResource LineIcon}" Data="M4,4 L12,12 M12,4 L4,12"/>
               </Button>
-              <Border Grid.Row="1" Margin="0,14,0,16" Padding="15,10" CornerRadius="18" Background="#141418" BorderBrush="#25252D" BorderThickness="1">
+              <Border Grid.Row="1" Margin="0,10,0,10" Padding="15,10" CornerRadius="18" Background="#141418" BorderBrush="#25252D" BorderThickness="1">
                 <StackPanel>
-                  <Grid MinHeight="42">
+                  <Grid MinHeight="38">
                     <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <TextBlock Text="Windows 通知" FontSize="15" VerticalAlignment="Center"/>
@@ -422,7 +472,7 @@
                     <TextBlock x:Name="NotificationHint" Grid.Row="1" Grid.ColumnSpan="3" Visibility="Collapsed" Foreground="#B9ABA1" FontSize="14" TextWrapping="Wrap" Margin="0,3,0,6"/>
                   </Grid>
                   <Border Height="1" Background="#28282F" Margin="0,7"/>
-                  <Grid MinHeight="42">
+                  <Grid MinHeight="38">
                     <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                     <TextBlock Text="媒体控制" FontSize="15" VerticalAlignment="Center"/>
                     <Border x:Name="MediaBadge" Grid.Column="1" Padding="9,4" CornerRadius="10" VerticalAlignment="Center" Background="#25252D">
@@ -432,9 +482,9 @@
                 </StackPanel>
               </Border>
               <StackPanel Grid.Row="2" Margin="0,0,0,12">
-                <CheckBox x:Name="PrivacyCheck" Content="隐藏消息内容" Click="Settings_Changed"/>
-                <CheckBox x:Name="QuietCheck" Content="暂停弹出提示" Click="Settings_Changed"/>
-                <CheckBox x:Name="StartupCheck" Content="登录 Windows 时启动" Click="Startup_Changed"/>
+                <CheckBox x:Name="PrivacyCheck" Height="36" Content="隐藏消息内容" Click="Settings_Changed"/>
+                <CheckBox x:Name="QuietCheck" Height="36" Content="暂停弹出提示" Click="Settings_Changed"/>
+                <CheckBox x:Name="StartupCheck" Height="36" Content="登录 Windows 时启动" Click="Startup_Changed"/>
                 <StackPanel Margin="0,8,0,0">
                   <TextBlock Text="无操作自动收起" FontSize="15"/>
                   <Border CornerRadius="15" Background="#141418" Padding="4" Margin="0,8,0,0">

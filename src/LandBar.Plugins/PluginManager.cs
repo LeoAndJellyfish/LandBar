@@ -32,6 +32,7 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
     private readonly Dictionary<string, Runtime> _running = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PluginStatus> _lastStatus = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PluginCard> _cards = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, PluginView> _views = new(StringComparer.Ordinal);
     private IReadOnlyList<PluginStatus> _invalid = [];
     private bool _disposed;
 
@@ -57,6 +58,11 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
     public IReadOnlyList<PluginCard> Cards
     {
         get { lock (_sync) return _cards.Values.OrderBy(card => card.PluginId).ThenBy(card => card.Id).ToArray(); }
+    }
+
+    public IReadOnlyList<PluginView> Views
+    {
+        get { lock (_sync) return _views.Values.OrderBy(view => view.PluginId).ThenBy(view => view.Id).ToArray(); }
     }
 
     /// <summary>Refreshes manifests without launching programs. Running, unchanged IDs keep their process.</summary>
@@ -178,7 +184,8 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
         if (runtime is null) return false;
         try
         {
-            if (!await WriteAsync(runtime, new { type = "hello", protocolVersion = PluginProtocol.Version }).ConfigureAwait(false))
+            if (!await WriteAsync(runtime, new { type = "hello", protocolVersion = PluginProtocol.Version,
+                features = new[] { "cards", "views", "contexts", "tabs", "sprites" } }).ConfigureAwait(false))
                 return false;
             return await runtime.Ready.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         }
@@ -228,6 +235,41 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
                 !card.Actions.Any(action => action.Id == actionId)) return false;
         }
         return await WriteAsync(runtime, new { type = "action", cardId, actionId }).ConfigureAwait(false);
+    }
+
+    public async Task<bool> ViewActionAsync(string pluginId, string viewId, string actionId)
+    {
+        Runtime? runtime;
+        lock (_sync)
+        {
+            if (!_running.TryGetValue(pluginId, out runtime) || runtime.State != PluginState.Running ||
+                !_views.TryGetValue($"view:{pluginId}:{viewId}", out var view) ||
+                !PluginProtocol.HasViewAction(view.Root, actionId)) return false;
+        }
+        return await WriteAsync(runtime, new { type = "viewAction", viewId, actionId }).ConfigureAwait(false);
+    }
+
+    /// <summary>The host selects a provider first, then explicitly supplies that slot's required data.</summary>
+    public async Task<bool> SendContextAsync(string pluginId, string slot, object? data)
+    {
+        Runtime? runtime;
+        lock (_sync)
+        {
+            if (!_running.TryGetValue(pluginId, out runtime) || runtime.State != PluginState.Running ||
+                !_views.Values.Any(view => view.PluginId == pluginId && view.Slot == slot)) return false;
+        }
+        string text;
+        try
+        {
+            text = JsonSerializer.Serialize(new { type = "context", slot, data }, new JsonSerializerOptions { MaxDepth = 24 });
+            if (text.Length > PluginProtocol.MaximumLineLength || Encoding.UTF8.GetByteCount(text) > PluginProtocol.MaximumLineLength)
+                return false;
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            return false;
+        }
+        return await WriteSerializedAsync(runtime, text).ConfigureAwait(false);
     }
 
     public void Expire(DateTimeOffset now)
@@ -376,6 +418,25 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
             }
             else if (type == "remove")
                 changed = _cards.Remove($"plugin:{runtime.Definition.Manifest.Id}:{PluginProtocol.CardId(root)}");
+            else if (type == "view")
+            {
+                var view = PluginProtocol.View(runtime.Definition.Manifest.Id, root, DateTimeOffset.UtcNow);
+                if (_views.TryGetValue(view.StableKey, out var existing))
+                {
+                    changed = view.Slot != existing.Slot || view.Title != existing.Title || !PluginProtocol.SameNode(view.Root, existing.Root);
+                    if (changed) _views[view.StableKey] = view;
+                }
+                else
+                {
+                    if (_views.Count >= PluginProtocol.MaximumViews ||
+                        _views.Values.Count(value => value.PluginId == view.PluginId) >= PluginProtocol.MaximumViewsPerPlugin)
+                        throw new InvalidDataException("插件页面数量超限。");
+                    _views.Add(view.StableKey, view);
+                    changed = true;
+                }
+            }
+            else if (type == "removeView")
+                changed = _views.Remove($"view:{runtime.Definition.Manifest.Id}:{PluginProtocol.CardId(root)}");
             else throw new InvalidDataException("插件消息类型不受支持。");
         }
         if (changed) Notify();
@@ -388,7 +449,9 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
         catch (Exception) { }
     }
 
-    private async Task<bool> WriteAsync(Runtime runtime, object value)
+    private Task<bool> WriteAsync(Runtime runtime, object value) => WriteSerializedAsync(runtime, JsonSerializer.Serialize(value));
+
+    private async Task<bool> WriteSerializedAsync(Runtime runtime, string text)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(runtime.Cancellation.Token);
         deadline.CancelAfter(TimeSpan.FromSeconds(1));
@@ -397,7 +460,6 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
         {
             await runtime.Writer.WaitAsync(deadline.Token).ConfigureAwait(false);
             entered = true;
-            string text = JsonSerializer.Serialize(value);
             await runtime.Process.StandardInput.WriteLineAsync(text.AsMemory(), deadline.Token).ConfigureAwait(false);
             await runtime.Process.StandardInput.FlushAsync(deadline.Token).ConfigureAwait(false);
             return true;
@@ -442,6 +504,7 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
     private void RemoveCards(string pluginId)
     {
         foreach (string key in _cards.Values.Where(card => card.PluginId == pluginId).Select(card => card.StableKey).ToArray()) _cards.Remove(key);
+        foreach (string key in _views.Values.Where(view => view.PluginId == pluginId).Select(view => view.StableKey).ToArray()) _views.Remove(key);
     }
 
     private static PluginStatus Status(Definition definition, PluginState state, string? detail = null) =>

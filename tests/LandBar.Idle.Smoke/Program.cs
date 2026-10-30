@@ -61,6 +61,7 @@ internal static class Program
             ((AppSettings)Field("_settings").GetValue(_window)!).AutoCollapseSeconds = 0;
             Invoke("ApplyAutoCollapseSetting");
             await Task.Delay(800);
+            _window.Left = -3000; _window.Top = -3000;
             Invoke("EndDemo");
             Invoke("Collapse");
             await Task.Delay(850);
@@ -119,6 +120,44 @@ internal static class Program
             Assert(idle.IsVisible && ClockCenterError() <= 0.5 && _window.RenderSize == nativeSize,
                 "Collapsing the activity view restores the centered clock without resizing the native host");
             Capture("idle-return.png");
+
+            var inactivity = (IslandInactivityTimer)Field("_inactivity").GetValue(_window)!;
+            var settings = (AppSettings)Field("_settings").GetValue(_window)!;
+            settings.AutoCollapseSeconds = 5;
+            Invoke("ApplyAutoCollapseSetting");
+            var media = new MediaSessionSnapshot("demo.music", "fixture.music", "测试播放器", "曲目一", "本地夹具", null, true, false, true, true, true);
+            SetSessions(media);
+            Receive(new("fixture.media-new", IslandEventKind.Media, media.AppName, media.Title, media.Artist, DateTimeOffset.UtcNow, media.SessionId));
+            await Task.Delay(850);
+            var live = (IslandScheduler)Field("_liveScheduler").GetValue(_window)!;
+            Assert(idle.IsVisible && live.TotalCount == 0 && live.History.All(item => item.Kind != IslandEventKind.Media) && inactivity.Deadline is null,
+                "A new media source updates compact state without opening an automatic card or arming inactivity");
+            Invoke("OpenActivity");
+            await Task.Delay(850);
+            var deadline = inactivity.Deadline;
+            Assert(Math.Abs(shell.ActualWidth - 400) < .5 && Math.Abs(shell.ActualHeight - 240) < .5,
+                "Manual media activity uses the compact 400 by 240 panel");
+            Assert(CardText("PlayPauseLabel") == "暂停", "A manually opened playing snapshot exposes the pause control");
+            media = media with { Title = "曲目二", IsPlaying = false };
+            SetSessions(media);
+            Receive(new("fixture.media-next", IslandEventKind.Media, media.AppName, media.Title, media.Artist, DateTimeOffset.UtcNow, media.SessionId));
+            await Task.Delay(850);
+            Assert(CardText("Title") == "曲目二" && CardText("PlayPauseLabel") == "播放" && inactivity.Deadline == deadline,
+                "Track and playback snapshot changes refresh title and controls without extending inactivity");
+            Capture("media-manual-paused.png");
+            Invoke("Collapse");
+            media = media with { Title = "曲目三", IsPlaying = true };
+            SetSessions(media);
+            Receive(new("fixture.media-resume", IslandEventKind.Media, media.AppName, media.Title, media.Artist, DateTimeOffset.UtcNow, media.SessionId));
+            await Task.Delay(850);
+            Assert(idle.IsVisible && live.TotalCount == 0 && inactivity.Deadline is null,
+                "A song change and resumed playback keep the island collapsed");
+            Receive(new("fixture.notice-after-media", IslandEventKind.Notification, "通知 · 测试", "通知仍自动展开", "正文保持十五号字号，紧凑面板完整显示。", DateTimeOffset.UtcNow, "fixture.notice"));
+            await Task.Delay(850);
+            Assert(Element<FrameworkElement>("ActivityView").IsVisible && live.TotalCount == 1 && inactivity.Deadline is not null &&
+                Math.Abs(shell.ActualWidth - 400) < .5 && Math.Abs(shell.ActualHeight - 180) < .5,
+                "A real notification still opens the compact 400 by 180 automatic panel");
+            Capture("notification-compact.png");
         }
 
         private double ClockCenterError()
@@ -132,7 +171,16 @@ internal static class Program
         }
         private bool NoAnimatedAudioBars() => new[] { "AudioBar1", "AudioBar2", "AudioBar3" }
             .All(name => !Element<FrameworkElement>(name).RenderTransform.HasAnimatedProperties);
-        private void SetSessions(params MediaSessionSnapshot[] sessions) => Field("_sessions").SetValue(_window, sessions);
+        private void SetSessions(params MediaSessionSnapshot[] sessions) => typeof(WindowsMediaSource)
+            .GetMethod("Publish", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(Field("_media").GetValue(_window), new object[] { sessions });
+        private void Receive(IslandEvent item) => typeof(LandBar.MainWindow)
+            .GetMethod("Receive", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)!.Invoke(_window, new object[] { item });
+        private string CardText(string property)
+        {
+            object card = Element<ItemsControl>("EventItems").Items[0];
+            return (string)card.GetType().GetProperty(property)!.GetValue(card)!;
+        }
         private T Element<T>(string name) where T : FrameworkElement => (T)_window.FindName(name);
         private FieldInfo Field(string name) => typeof(LandBar.MainWindow).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!;
         private void Invoke(string name) => typeof(LandBar.MainWindow).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)!.Invoke(_window, null);

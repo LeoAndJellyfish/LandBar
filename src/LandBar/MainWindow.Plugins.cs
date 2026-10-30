@@ -91,7 +91,7 @@ public partial class MainWindow
             }
         }
         if (_exampleMode) return;
-        if (newActivity) _inactivity.Reset(_clock.Elapsed);
+        if (newActivity) RecordInteraction();
         Render();
     }
 
@@ -104,6 +104,7 @@ public partial class MainWindow
 
     private void PluginsTab_Click(object sender, RoutedEventArgs e)
     {
+        _activePluginTabKey = PluginTabs.FirstOrDefault()?.Key;
         _pluginsTab = true; _notificationsTab = false; _page = 0;
         RecordInteraction(); Render(); e.Handled = true;
     }
@@ -129,6 +130,7 @@ public partial class MainWindow
             }).ToArray();
         }
         SetVisible(PluginsEmptyHint, plugins.Count == 0);
+        RenderPluginViewChoices();
     }
 
     private static string PluginStateText(PluginState state) => state switch
@@ -198,10 +200,12 @@ public partial class MainWindow
     {
         e.Handled = true;
         if (_demo) { ShowPluginHint("请结束预览后安装示例。"); return; }
+        string exampleId = (sender as FrameworkElement)?.Tag as string ?? "focus-timer";
+        if (exampleId is not ("focus-timer" or "pixel-pet")) return;
         try
         {
-            string source = Path.Combine(AppContext.BaseDirectory, "PluginExamples", "focus-timer");
-            string destination = Path.Combine(PluginsDirectory, "focus-timer");
+            string source = Path.Combine(AppContext.BaseDirectory, "PluginExamples", exampleId);
+            string destination = Path.Combine(PluginsDirectory, exampleId);
             if (Directory.Exists(destination)) { ShowPluginHint("示例目录已存在，可在下方启用。"); return; }
             if (!Directory.Exists(source)) { ShowPluginHint("示例文件缺失，请重新解压完整发布包。"); return; }
             Directory.CreateDirectory(destination);

@@ -1,0 +1,11 @@
+{
+  "id": "pixel-pet",
+  "name": "像素伙伴",
+  "version": "1.0.0",
+  "description": "收起态像素动画与独立标签页，支持三种配色。",
+  "command": "powershell.exe",
+  "arguments": [
+    "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "plugin.ps1"
+  ],
+  "protocolVersion": 1
+}

@@ -67,6 +67,9 @@ internal static class Program
             try
             {
                 Get<DispatcherTimer>("_timer").Stop();
+                // Hover-specific checks use synthetic local points in Interaction.Smoke.
+                // Keep this options fixture clear of the user's actual pointer.
+                _window.Left = -3000; _window.Top = -3000;
                 Settings.Quiet = false;
                 CheckSettingsSerialization();
                 ChangeView("Settings");
@@ -90,6 +93,15 @@ internal static class Program
                     Check($"Option {seconds} applies expiry to live and preview queues", Scheduler.ExpireVisibleItems == (seconds != 0) &&
                         Get<IslandScheduler>("_liveScheduler").ExpireVisibleItems == (seconds != 0), new { seconds });
                 }
+
+                var clip = Get<RectangleGeometry>("_surfaceClip");
+                Invoke("UpdatePointerHover", new Point(clip.Rect.X + clip.Rect.Width / 2, clip.Rect.Y + 50));
+                Select(3);
+                Check("Changing the finite option while hovered keeps inactivity suspended", Idle.Timeout == TimeSpan.FromSeconds(3) && Idle.Deadline is null,
+                    new { timeout = Idle.Timeout?.TotalSeconds, deadline = Idle.Deadline?.TotalMilliseconds });
+                Invoke("UpdatePointerHover", new Point(0, 0));
+                Check("Leaving after an option change starts the complete selected interval", Idle.Deadline >= Clock.Elapsed + TimeSpan.FromMilliseconds(2900),
+                    new { remainingMilliseconds = (Idle.Deadline - Clock.Elapsed)?.TotalMilliseconds });
 
                 Select(0);
                 Invoke("Collapse");

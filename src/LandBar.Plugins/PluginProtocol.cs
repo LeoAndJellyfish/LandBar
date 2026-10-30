@@ -11,9 +11,12 @@ internal static partial class PluginProtocol
     internal const int MaximumCardsPerPlugin = 8;
     internal const int MaximumCards = 32;
     internal const int MaximumRunning = 8;
+    internal const int MaximumViewsPerPlugin = 12;
+    internal const int MaximumViews = 48;
     internal static readonly HashSet<string> Icons = new(StringComparer.Ordinal)
         { "activity", "timer", "check", "download", "code", "calendar", "info", "music" };
-    private static readonly JsonDocumentOptions JsonOptions = new() { MaxDepth = 12 };
+    // A node at depth eight also nests a children array on each ancestor.
+    private static readonly JsonDocumentOptions JsonOptions = new() { MaxDepth = 24 };
 
     [GeneratedRegex("^[a-z0-9][a-z0-9._-]{0,63}$", RegexOptions.CultureInvariant)]
     private static partial Regex PluginIdentifier();

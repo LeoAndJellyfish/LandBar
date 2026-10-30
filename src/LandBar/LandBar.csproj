@@ -12,7 +12,7 @@
     <AssemblyTitle>LandBar</AssemblyTitle>
     <Product>LandBar</Product>
     <ApplicationIcon>Assets/Brand/LandBar.ico</ApplicationIcon>
-    <Version>0.4.0</Version>
+    <Version>0.5.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../LandBar.Core/LandBar.Core.csproj" />
@@ -22,5 +22,6 @@
     <None Update="Assets/Fonts/OFL.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Assets/Fonts/README.md" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../samples/focus-timer/*" Link="PluginExamples/focus-timer/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../samples/pixel-pet/*" Link="PluginExamples/pixel-pet/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

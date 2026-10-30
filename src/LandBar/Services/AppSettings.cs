@@ -7,6 +7,8 @@ namespace LandBar.Services;
 public sealed class AppSettings
 {
     public List<string> EnabledPluginIds { get; set; } = [];
+    public bool EnablePluginViews { get; set; } = true;
+    public Dictionary<string, string> PluginViewBindings { get; set; } = new(StringComparer.Ordinal);
     private int _autoCollapseSeconds = 5;
     /// <summary>Zero keeps the island open; older settings files retain the five-second default.</summary>
     public int AutoCollapseSeconds

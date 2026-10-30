@@ -129,6 +129,14 @@ def main():
                                  "app/PluginExamples/focus-timer/README.md"})
             check("Required application, identity, documentation and license files", required.issubset(names),
                   {"missing": sorted(required.difference(names))})
+            if tuple(map(int, args.tag[1:].split("."))) >= (0, 5, 0):
+                pixel_files = {f"app/PluginExamples/pixel-pet/{name}" for name in ("plugin.json", "plugin.ps1", "README.md")}
+                check("Pixel animation example is bundled", pixel_files.issubset(names))
+                pixel = json.loads(archive.read("app/PluginExamples/pixel-pet/plugin.json").decode("utf-8-sig"))
+                check("Pixel example uses the supported view protocol", pixel.get("id") == "pixel-pet" and pixel.get("protocolVersion") == 1)
+                check("Pixel example preserves PowerShell encoding", archive.read("app/PluginExamples/pixel-pet/plugin.ps1").startswith(b"\xef\xbb\xbf"))
+                providers = {PurePosixPath(name).parts[2] for name in names if name.startswith("app/PluginExamples/")}
+                check("Only approved public plugin examples are bundled", providers == {"focus-timer", "pixel-pet"}, sorted(providers))
             if tuple(map(int, args.tag[1:].split("."))) >= (0, 4, 0):
                 example = json.loads(archive.read("app/PluginExamples/focus-timer/plugin.json").decode("utf-8-sig"))
                 check("Bundled plugin declares supported protocol", example.get("id") == "focus-timer" and

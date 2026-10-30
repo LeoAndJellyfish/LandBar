@@ -49,7 +49,9 @@ $manifestPath = Join-Path $stagingPath 'AppxManifest.xml'
 if (-not $PackageVersion) {
     $buildDay = [int]((Get-Date).Date - [datetime]'2026-01-01').TotalDays
     $buildMinute = ((Get-Date).Hour * 60) + (Get-Date).Minute
-    $PackageVersion = "0.3.$buildDay.$buildMinute"
+    [xml]$developmentProject = Get-Content -LiteralPath (Join-Path $workspacePath 'src/LandBar/LandBar.csproj') -Raw
+    $developmentVersion = $developmentProject.SelectSingleNode('/Project/PropertyGroup/Version').InnerText.Split('.')
+    $PackageVersion = "$($developmentVersion[0]).$($developmentVersion[1]).$buildDay.$buildMinute"
 }
 foreach ($part in $PackageVersion.Split('.')) {
     if ([int]$part -gt 65535) { throw 'Each package version component must be between 0 and 65535.' }
