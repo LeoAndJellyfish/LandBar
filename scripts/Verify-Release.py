@@ -122,8 +122,19 @@ def main():
                         "Install.ps1", "Start.ps1", "Uninstall.ps1", "安装并启动.cmd", "启动.cmd", "卸载.cmd",
                         "README.md", "THIRD_PARTY_NOTICES.md", "docs/installation.md", "docs/development.md",
                         "third_party/dotnet/COMPONENTS.txt", "third_party/windows-sdk/sdk_license.rtf"}
+            if tuple(map(int, args.tag[1:].split("."))) >= (0, 4, 0):
+                required.update({"app/LandBar.Plugins.dll", "docs/plugins.md",
+                                 "app/PluginExamples/focus-timer/plugin.json",
+                                 "app/PluginExamples/focus-timer/plugin.ps1",
+                                 "app/PluginExamples/focus-timer/README.md"})
             check("Required application, identity, documentation and license files", required.issubset(names),
                   {"missing": sorted(required.difference(names))})
+            if tuple(map(int, args.tag[1:].split("."))) >= (0, 4, 0):
+                example = json.loads(archive.read("app/PluginExamples/focus-timer/plugin.json").decode("utf-8-sig"))
+                check("Bundled plugin declares supported protocol", example.get("id") == "focus-timer" and
+                      example.get("protocolVersion") == 1 and example.get("command") == "powershell.exe")
+                check("PowerShell 5.1 sample retains UTF-8 BOM",
+                      archive.read("app/PluginExamples/focus-timer/plugin.ps1").startswith(b"\xef\xbb\xbf"))
             blocked = {"smoke-result.json", "notification-test-result.json", "settings.json", "deployment.json", "diagnostics.log"}
             forbidden = [name for name in names if name.lower().endswith(".pdb") or
                          PurePosixPath(name).name.lower() in blocked or

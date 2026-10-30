@@ -1,0 +1,16 @@
+{
+  "id": "focus-timer",
+  "name": "专注计时",
+  "version": "1.0.0",
+  "description": "25 分钟专注计时，支持暂停、继续、重置和 10 秒演示。",
+  "command": "powershell.exe",
+  "arguments": [
+    "-NoLogo",
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    "plugin.ps1"
+  ],
+  "protocolVersion": 1
+}

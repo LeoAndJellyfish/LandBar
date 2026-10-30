@@ -12,13 +12,15 @@
     <AssemblyTitle>LandBar</AssemblyTitle>
     <Product>LandBar</Product>
     <ApplicationIcon>Assets/Brand/LandBar.ico</ApplicationIcon>
-    <Version>0.3.10</Version>
+    <Version>0.4.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../LandBar.Core/LandBar.Core.csproj" />
+    <ProjectReference Include="../LandBar.Plugins/LandBar.Plugins.csproj" />
     <Resource Include="Assets/Fonts/*.ttf" />
     <Resource Include="Assets/Brand/LandBar.ico" />
     <None Update="Assets/Fonts/OFL.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Assets/Fonts/README.md" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../samples/focus-timer/*" Link="PluginExamples/focus-timer/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

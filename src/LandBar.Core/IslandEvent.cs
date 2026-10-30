@@ -3,7 +3,8 @@ namespace LandBar.Core;
 public enum IslandEventKind
 {
     Notification,
-    Media
+    Media,
+    Plugin
 }
 
 public sealed record IslandEvent(

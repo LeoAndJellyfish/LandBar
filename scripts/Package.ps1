@@ -29,7 +29,8 @@ foreach ($file in Get-ChildItem -LiteralPath $appSource -Recurse -File) {
     $relative = $file.FullName.Substring($appSource.Length + 1)
     $allowed = $file.Extension -in @('.dll', '.exe') -or
         $relative -in @('LandBar.deps.json', 'LandBar.runtimeconfig.json', 'LICENSE.txt', 'ThirdPartyNotices.txt') -or
-        ($relative -like 'Assets\*' -and $file.Extension -in @('.png', '.txt', '.md', '.ttf', '.ico'))
+        ($relative -like 'Assets\*' -and $file.Extension -in @('.png', '.txt', '.md', '.ttf', '.ico')) -or
+        ($relative -like 'PluginExamples\focus-timer\*' -and $file.Name -in @('plugin.json', 'plugin.ps1', 'README.md'))
     if (-not $allowed) {
         if ($file.Extension -eq '.pdb') { continue }
         throw "Unexpected publish output requires a packaging review: $relative"
@@ -42,7 +43,7 @@ foreach ($name in @('LandBar.identity.msix', 'Install.ps1', 'Start.ps1', 'Uninst
     Copy-Item -LiteralPath (Join-Path $distributionPath $name) -Destination $payloadPath
 }
 Copy-Item -LiteralPath (Join-Path $distributionPath 'identity') -Destination $payloadPath -Recurse
-foreach ($name in @('README.md', 'THIRD_PARTY_NOTICES.md', 'docs/installation.md', 'docs/development.md')) {
+foreach ($name in @('README.md', 'THIRD_PARTY_NOTICES.md', 'docs/installation.md', 'docs/development.md', 'docs/plugins.md')) {
     $destination = Join-Path $payloadPath $name
     New-Item -ItemType Directory -Force (Split-Path $destination -Parent) | Out-Null
     Copy-Item -LiteralPath (Join-Path $workspacePath $name) -Destination $destination
@@ -97,7 +98,7 @@ $binaryVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $appDe
 if ($binaryVersion -ne "$Version.0") { throw "Packaged binary version is $binaryVersion, expected $Version.0." }
 [xml]$manifest = Get-Content -LiteralPath (Join-Path $payloadPath 'identity/AppxManifest.xml') -Raw
 if ($manifest.Package.Identity.Version -ne "$Version.0") { throw 'Identity version does not match release version.' }
-foreach ($required in @('app/LandBar.exe', 'app/LandBar.dll', 'app/coreclr.dll', 'app/Assets/Fonts/OFL.txt', 'LandBar.identity.msix', 'identity/AppxManifest.xml')) {
+foreach ($required in @('app/LandBar.exe', 'app/LandBar.dll', 'app/LandBar.Plugins.dll', 'app/coreclr.dll', 'app/Assets/Fonts/OFL.txt', 'app/PluginExamples/focus-timer/plugin.json', 'app/PluginExamples/focus-timer/plugin.ps1', 'LandBar.identity.msix', 'identity/AppxManifest.xml')) {
     if (-not (Test-Path -LiteralPath (Join-Path $payloadPath $required))) { throw "Release file missing: $required" }
 }
 

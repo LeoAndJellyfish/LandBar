@@ -213,6 +213,36 @@ public sealed class IslandScheduler
         return true;
     }
 
+    /// <summary>Updates a live card without reopening it or renewing its exposure budget.</summary>
+    public bool Update(IslandEvent value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        bool changed = false;
+        foreach (var entry in _visible.Concat(_waiting).Where(entry => entry.Value.Id == value.Id))
+        {
+            if (entry.Value == value) continue;
+            entry.Value = value;
+            changed = true;
+        }
+        for (int i = 0; i < _history.Count; i++)
+            if (_history[i].Id == value.Id && _history[i] != value)
+            {
+                _history[i] = value;
+                changed = true;
+            }
+        if (changed) Revision++;
+        return changed;
+    }
+
+    /// <summary>Withdraws a provider-owned card, including its history.</summary>
+    public bool Remove(string id)
+    {
+        bool active = Dismiss(id);
+        bool history = _history.RemoveAll(item => item.Id == id) > 0;
+        if (history && !active) Revision++;
+        return active || history;
+    }
+
     /// <summary>Clears active cards. The duplicate cache remains so polling cannot resurrect them.</summary>
     public void Clear()
     {

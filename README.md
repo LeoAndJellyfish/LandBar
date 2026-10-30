@@ -4,7 +4,7 @@
 
 <h1 align="center">LandBar</h1>
 
-<p align="center">Windows 顶部的消息与媒体悬浮栏</p>
+<p align="center">Windows 顶部的通知、媒体与自定义活动</p>
 
 <p align="center">
   <a href="https://github.com/LeoAndJellyfish/LandBar/actions/workflows/ci.yml"><img src="https://github.com/LeoAndJellyfish/LandBar/actions/workflows/ci.yml/badge.svg" alt="Windows CI"></a>
@@ -14,6 +14,7 @@
 <p align="center">
   <a href="https://github.com/LeoAndJellyfish/LandBar/releases/latest">下载 Windows x64 版</a> ·
   <a href="docs/installation.md">安装说明</a> ·
+  <a href="docs/plugins.md">插件开发</a> ·
   <a href="docs/development.md">开发与构建</a>
 </p>
 
@@ -21,7 +22,9 @@
   <img src="docs/images/media-preview.png" width="792" alt="LandBar 内置媒体示例：两个播放器并列显示，各自提供播放控制">
 </p>
 
-LandBar 在桌面顶部显示一个紧凑胶囊。收到新通知或切换歌曲时，胶囊展开显示内容；单击可查看通知、切换媒体来源和控制播放。深色圆角界面搭配 Noto Sans SC 字体，展开与收起围绕顶部中心过渡，文字保持原始大小。
+LandBar 在桌面顶部显示一个紧凑胶囊。空闲时仅显示居中时钟；收到通知、切换歌曲或出现插件活动时展开。单击可查看媒体、通知与插件，右键进入控制中心。深色圆角界面搭配 Noto Sans SC 字体，展开与收起围绕顶部中心过渡，文字保持原始大小。
+
+<p align="center"><img src="docs/images/idle-clock.png" width="112" height="44" alt="空闲状态：仅显示居中时钟，无消息占位图标"></p>
 
 ## 开始使用
 
@@ -40,7 +43,7 @@ LandBar 在桌面顶部显示一个紧凑胶囊。收到新通知或切换歌曲
 
 | 操作 | 结果 |
 | --- | --- |
-| 单击胶囊 | 展开“媒体”和“通知”页 |
+| 单击胶囊 | 展开“媒体”“通知”或“插件”页 |
 | 右键胶囊／单击托盘图标 | 打开控制中心，进入设置或预览 |
 | 点击上一首、播放／暂停、下一首 | 控制对应媒体来源，其他来源保持原状态 |
 | 点击分页箭头／滚动滚轮 | 查看更多媒体或通知 |
@@ -61,6 +64,18 @@ LandBar 在桌面顶部显示一个紧凑胶囊。收到新通知或切换歌曲
 
 </details>
 
+## 插件
+
+**v0.4.0** 支持独立进程插件。插件可提交活动卡片、更新进度、添加最多三个操作按钮，并接收点击事件。卡片沿用 LandBar 的字体、间距与动画，自动提示最多并列两张，更多活动轮换显示。
+
+<p align="center"><img src="docs/images/plugin-preview.png" width="464" alt="独立测试插件的实际界面：计时进度及暂停、重置操作"></p>
+
+1. 打开“控制中心 → 插件管理”，点击“安装专注计时器示例”。
+2. 确认插件来源后点击“启用”。示例支持暂停、继续、重置和十秒演示。
+3. 单击胶囊进入“插件”页查看当前活动；停用插件会结束进程并清理卡片。
+
+自行开发时，在 `%LOCALAPPDATA%\LandBar\Plugins\<插件目录>` 放置 `plugin.json` 和程序，再刷新插件列表。协议采用 UTF-8 JSON Lines，可使用 C#、Python、PowerShell 等语言。插件默认停用，以当前用户权限运行；请仅启用信任的本地程序。清单、协议、生命周期、示例与设计依据见 [插件开发文档](docs/plugins.md)。
+
 ## 接入范围
 
 通知来自 **Windows 通知中心**，媒体来自 **Windows 系统媒体会话**。应用提供的通知内容、媒体信息和控制能力决定岛内可显示及操作的内容。
@@ -69,6 +84,7 @@ LandBar 在桌面顶部显示一个紧凑胶囊。收到新通知或切换歌曲
 - **系统媒体**：展示接入系统媒体控制的播放器与浏览器，支持独立会话和播放状态同步。
 - **微信正文**：当前尚无独立接入。任务栏红点、闪烁和提示音属于其他提醒渠道，相关正文仍需单独适配。QQ 等应用也以其实际系统通知输出为准。
 - **内置预览**：使用明确标注“示例”的通知和媒体，与真实通知队列分离；结束预览后恢复实际来源。
+- **插件活动**：来源由用户安装的程序提供，支持进度、按钮和主动撤回；同一卡片更新保留展示期限，收起后可在“插件”页继续查看。
 
 显示设置存于 `%LOCALAPPDATA%\LandBar\settings.json`，封面缓存位于同目录的 `Artwork` 文件夹。通知正文保存在内存中，诊断日志记录异常类型。
 
@@ -83,6 +99,6 @@ dotnet build src/LandBar/LandBar.csproj -c Release
 ./scripts/Test.ps1
 ```
 
-CI 检查核心逻辑、媒体选择、动画数学、配色、字体资源及构建。依赖交互桌面的窗口、置顶与系统媒体测试单独运行。打包流程、测试分类和发布约定见 [开发文档](docs/development.md)。
+CI 检查核心逻辑、插件协议与真实子进程、媒体选择、动画数学、配色、字体资源及构建。依赖交互桌面的窗口、置顶与系统媒体测试单独运行。打包流程、测试分类和发布约定见 [开发文档](docs/development.md)。
 
 问题反馈可提交到 [Issues](https://github.com/LeoAndJellyfish/LandBar/issues)，请注明 Windows 版本、LandBar 版本、来源应用及复现步骤。字体与运行时的分发声明见 [第三方声明](THIRD_PARTY_NOTICES.md)。

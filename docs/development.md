@@ -28,7 +28,7 @@ dotnet run --project src/LandBar -c Release -- --demo --preview
 ./scripts/Test.ps1
 ```
 
-稳定检查覆盖核心调度、媒体排序、动画数学、弹簧、配色及嵌入字体。CI 同时构建应用和发布包，验证版本、归档内容与校验记录。具体任务以 [工作流配置](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/ci.yml)为准。
+稳定检查覆盖核心调度、插件协议与真实子进程、媒体排序、动画数学、弹簧、配色及嵌入字体。CI 同时构建应用和发布包，验证版本、归档内容与校验记录。具体任务以 [工作流配置](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/ci.yml)为准。
 
 ### 交互桌面检查
 
@@ -36,7 +36,7 @@ dotnet run --project src/LandBar -c Release -- --demo --preview
 ./scripts/Test.ps1 -IncludeDesktop
 ```
 
-该选项额外运行预览、输入、自动收起、过渡与置顶检查。检查会创建隔离测试窗口，需要可交互的 Windows 桌面会话。系统媒体检查单独运行：
+该选项额外运行空闲形态、插件交互、预览、输入、自动收起、过渡与置顶检查。检查会创建隔离测试窗口，需要可交互的 Windows 桌面会话。系统媒体检查单独运行：
 
 ```powershell
 dotnet run --project tests/LandBar.Media.Tests -c Release
@@ -53,7 +53,7 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 
 `Build.ps1` 先请求当前 `dist/app` 中的 LandBar 正常退出，再发布自包含程序，构建稀疏身份包并整理安装脚本。普通本地构建产物位于 `dist`。
 
-`Package.ps1` 从独立构建目录按白名单整理发布文件，保留正在运行的 `dist` 实例。默认生成 `releases/LandBar-v<Version>-win-x64.zip` 与 `releases/SHA256SUMS.txt`。可使用 `-Version v0.3.10` 校验指定版本，或通过 `-OutputDirectory` 指定输出目录。
+`Package.ps1` 从独立构建目录按白名单整理发布文件，保留正在运行的 `dist` 实例。默认生成 `releases/LandBar-v<Version>-win-x64.zip` 与 `releases/SHA256SUMS.txt`。可使用 `-Version v0.4.0` 校验指定版本，或通过 `-OutputDirectory` 指定输出目录。
 
 归档包含应用、身份文件、安装／启动／卸载脚本、使用文档、图片及第三方声明。本地通知、封面缓存、运行诊断和历史构建产物留在发布包之外。
 
@@ -80,7 +80,7 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 
 1. 在 `src/LandBar/LandBar.csproj` 更新 `Version`，提交代码与相应说明。
 2. 确认该提交的 Windows CI 通过。
-3. 创建与版本一致的 `v<Version>` 标签，例如 `v0.3.10`，推送该标签。
+3. 创建与版本一致的 `v<Version>` 标签，例如 `v0.4.0`，推送该标签。
 4. [Release 工作流](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/release.yml)校验标签与项目版本，再构建并上传 ZIP 和校验记录。
 5. [发布校验工作流](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/verify-release.yml)从公开地址下载 ZIP 与校验文件，检查版本、归档内容和 SHA-256；也可在 Actions 中指定标签手动运行。
 
@@ -91,6 +91,7 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 | 路径 | 内容 |
 | --- | --- |
 | `src/LandBar.Core` | 有界提示队列、轮换、通知清理与无操作期限 |
+| `src/LandBar.Plugins` | 插件清单、进程生命周期、JSON Lines 协议与资源限额 |
 | `src/LandBar/Services` | Windows 通知、系统媒体、设置与缓存 |
 | `src/LandBar/Presentation` | 弹簧、内容过渡、圆角裁切、配色和置顶维护 |
 | `src/LandBar/MainWindow.xaml` | 胶囊、活动页、控制中心与设置界面 |
@@ -108,3 +109,9 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 - 通知接口：[Microsoft UserNotificationListener](https://learn.microsoft.com/en-us/windows/apps/develop/notifications/app-notifications/notification-listener)。
 - 媒体接口：[Microsoft GSMTC](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssessionmanager)。
 - 身份包：[Microsoft 桌面应用包身份](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/grant-identity-to-nonpackaged-apps)。
+
+## 插件开发
+
+插件通过独立进程接入，使用 stdin/stdout 交换 UTF-8 JSON Lines。插件可以发布和撤回卡片、更新进度并接收按钮事件。宿主负责卡片布局与动画，插件负责数据和业务逻辑。
+
+清单、协议、开发示例及限制见 [插件开发文档](plugins.md)，可运行的专注计时器位于 `samples/focus-timer`。本地插件目录与显示设置独立保留，更新发布包后仍可使用。

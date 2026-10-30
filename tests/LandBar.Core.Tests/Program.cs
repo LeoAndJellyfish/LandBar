@@ -25,7 +25,9 @@ var tests = new (string Name, Action Run)[]
     ("Clearing notifications removes mixed active, waiting and history entries only", ClearNotificationsMixed),
     ("Clearing notifications retains media display budgets and notification deduplication", ClearNotificationsBudgets),
     ("Clearing notification history alone retains the current media rotation", ClearNotificationsHistoryOnly),
-    ("Clearing notifications remains available while paused or expiry is disabled", ClearNotificationsPaused)
+    ("Clearing notifications remains available while paused or expiry is disabled", ClearNotificationsPaused),
+    ("Plugin updates retain exposure and never reopen collapsed cards", PluginUpdates),
+    ("Provider withdrawal removes active and historical cards without clearing other sources", PluginWithdrawal)
 };
 
 foreach (var (name, run) in tests)
@@ -47,6 +49,38 @@ static void Equal<T>(T expected, T actual)
 static void True(bool value)
 {
     if (!value) throw new InvalidOperationException("Expected true");
+}
+static void PluginUpdates()
+{
+    var scheduler = new IslandScheduler();
+    var card = new IslandEvent("plugin:timer:focus", IslandEventKind.Plugin, "专注", "25:00", "", DateTimeOffset.UnixEpoch);
+    scheduler.Push(card);
+    scheduler.Tick(TimeSpan.FromSeconds(7));
+    scheduler.Update(card with { Title = "24:53" });
+    Equal("24:53", scheduler.VisibleItems.Single().Title);
+    Equal(1, scheduler.History.Count);
+    scheduler.Tick(TimeSpan.FromSeconds(1));
+    Equal(0, scheduler.TotalCount);
+    scheduler.Update(card with { Title = "24:52" });
+    Equal(0, scheduler.TotalCount);
+    Equal("24:52", scheduler.History.Single().Title);
+    scheduler.Push(card with { Id = "plugin:timer:next" });
+    scheduler.Clear();
+    scheduler.Update(card with { Id = "plugin:timer:next", Title = "Updated" });
+    Equal(0, scheduler.TotalCount);
+}
+static void PluginWithdrawal()
+{
+    var scheduler = new IslandScheduler();
+    scheduler.Push(Notification("notice"));
+    scheduler.Push(new("plugin:timer:a", IslandEventKind.Plugin, "专注", "计时", "", DateTimeOffset.UnixEpoch));
+    scheduler.Push(Song("song"));
+    scheduler.ClearNotifications();
+    Equal(2, scheduler.TotalCount);
+    True(scheduler.Remove("plugin:timer:a"));
+    Equal("song", scheduler.VisibleItems.Single().Id);
+    True(scheduler.History.All(item => item.Kind != IslandEventKind.Plugin));
+    True(!scheduler.Remove("plugin:timer:a"));
 }
 static void InactivityDeadline()
 {

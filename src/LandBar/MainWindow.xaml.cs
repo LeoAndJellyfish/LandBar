@@ -12,6 +12,7 @@ using System.Windows.Threading;
 using LandBar.Core;
 using LandBar.Services;
 using LandBar.Presentation;
+using LandBar.Plugins;
 using Windows.UI.Notifications.Management;
 using Forms = System.Windows.Forms;
 using Drawing = System.Drawing;
@@ -20,7 +21,7 @@ namespace LandBar;
 
 public partial class MainWindow : Window
 {
-    private enum IslandView { Automatic, Activity, ControlCenter, Settings }
+    private enum IslandView { Automatic, Activity, ControlCenter, Settings, PluginSettings }
     private readonly IslandScheduler _liveScheduler = new();
     private IslandScheduler _scheduler;
     private readonly IslandInactivityTimer _inactivity = new();
@@ -135,6 +136,7 @@ public partial class MainWindow : Window
         CreateTray();
         if (!_demo)
         {
+            InitializePlugins();
             _ = WatchSource(() => _media.StartAsync(_stop.Token));
             _ = WatchSource(() => _notifications.StartAsync(_stop.Token));
         }
@@ -224,6 +226,7 @@ public partial class MainWindow : Window
 
     private void OnTick(object? sender, EventArgs e)
     {
+        _plugins?.Expire(DateTimeOffset.UtcNow);
         var now = _clock.Elapsed;
         if (_view == IslandView.Automatic && _scheduler.TotalCount == 0) _inactivity.Stop();
         else if (_inactivity.IsExpired(now)) Collapse();
@@ -265,6 +268,7 @@ public partial class MainWindow : Window
         ScreenButton.Content = $"屏幕：{Array.FindIndex(Forms.Screen.AllScreens, s => s.DeviceName == GetScreen().DeviceName) + 1}";
         OffsetButton.Content = $"顶部间距：{_settings.TopOffset}";
         RenderAutoCollapseOptions();
+        RenderPluginManagement();
         var sessions = OrderedSessions;
         var history = NotificationHistory;
         bool automaticCards = _view == IslandView.Automatic && !_settings.Quiet && _scheduler.TotalCount > 0;
@@ -282,6 +286,13 @@ public partial class MainWindow : Window
                 cards.AddRange(_scheduler.VisibleItems.Select(item => FromEvent(item, sessions)));
                 pageCount = Math.Max(1, _scheduler.PageCount);
             }
+            else if (_pluginsTab)
+            {
+                var pluginCards = CurrentPluginCards;
+                pageCount = Math.Max(1, (pluginCards.Count + 1) / 2);
+                _page = Math.Clamp(_page, 0, pageCount - 1);
+                cards.AddRange(pluginCards.Skip(_page * 2).Take(2).Select(FromPlugin));
+            }
             else if (!_notificationsTab)
             {
                 pageCount = Math.Max(1, (sessions.Count + 1) / 2);
@@ -295,11 +306,13 @@ public partial class MainWindow : Window
                 cards.AddRange(history.Skip(_page * 2).Take(2).Select(item => FromEvent(item, sessions)));
             }
         }
-        double compactWidth = sessions.Count > 1 ? 208 : sessions.Count > 0 ? 180 : 148;
+        double compactWidth = sessions.Count > 1 ? 208 : sessions.Count > 0 ? 180 : 112;
         double width = Math.Min(availableWidth, compact ? compactWidth : _view == IslandView.ControlCenter ? 396 :
-            _view == IslandView.Settings ? 448 : cards.Count > 1 ? 792 : 464);
+            _view is IslandView.Settings or IslandView.PluginSettings ? 448 : cards.Count > 1 ? 792 : 464);
         double height = compact ? 44 : _view == IslandView.ControlCenter ? 300 :
-            _view == IslandView.Settings ? 488 : cards.Count == 0 ? 168 : cards.Any(c => c.IsMedia) ? (cards.Count > 1 ? 280 : 288) : 208;
+            _view == IslandView.Settings ? 488 : _view == IslandView.PluginSettings ? Math.Min(488, 320 + (_plugins?.Plugins.Count ?? 0) * 76) : cards.Count == 0 ? 168 :
+            cards.Any(c => c.IsPlugin && (c.PluginActions.Count > 0 || c.ProgressVisibility == Visibility.Visible)) ? 280 :
+            cards.Any(c => c.IsMedia) ? (cards.Count > 1 ? 280 : 288) : 208;
         if (activity && pageCount > 1) height += 28;
         height = Math.Min(height, availableHeight);
         foreach (var (card, index) in cards.Select((value, index) => (value, index)))
@@ -314,7 +327,8 @@ public partial class MainWindow : Window
             Math.Abs(_contentTransition.TargetHeight - height) > 0.5;
         var targetView = _view;
         bool showNotifications = _notificationsTab;
-        string key = $"{targetView}:{showNotifications}:{width}:{_settings.HideContent}:" + string.Join("|", cards.Select(c => c.Key));
+        bool showPlugins = _pluginsTab;
+        string key = $"{targetView}:{showNotifications}:{showPlugins}:{width}:{_settings.HideContent}:" + string.Join("|", cards.Select(c => c.Key));
         int page = automaticCards ? Math.Max(0, _scheduler.CurrentPage - 1) : _page;
         string pagerKey = $"{pageCount}:{page}";
         void ApplyPresentation()
@@ -323,16 +337,19 @@ public partial class MainWindow : Window
             SetVisible(ActivityView, activity);
             SetVisible(ControlCenterView, targetView == IslandView.ControlCenter);
             SetVisible(SettingsScroll, targetView == IslandView.Settings);
+            SetVisible(PluginManagementScroll, targetView == IslandView.PluginSettings);
             SetVisible(ActivityTabs, targetView == IslandView.Activity);
             SetVisible(ClearNotificationsButton, targetView == IslandView.Activity && showNotifications);
             ClearNotificationsButton.IsEnabled = history.Count > 0;
             SetVisible(EmptyState, activity && cards.Count == 0);
-            EmptyState.Text = showNotifications ? "暂无通知" : "暂无媒体";
-            MediaTab.Foreground = Brush(showNotifications ? "#83838F" : "#F2F2F4");
+            EmptyState.Text = showPlugins ? "暂无插件活动" : showNotifications ? "暂无通知" : "暂无媒体";
+            MediaTab.Foreground = Brush(showNotifications || showPlugins ? "#83838F" : "#F2F2F4");
             NotificationsTab.Foreground = Brush(showNotifications ? "#F2F2F4" : "#83838F");
-            MediaTab.Background = Brush(showNotifications ? "#08080A" : "#24242B");
+            MediaTab.Background = Brush(showNotifications || showPlugins ? "#08080A" : "#24242B");
             NotificationsTab.Background = Brush(showNotifications ? "#24242B" : "#08080A");
             MediaTab.Content = sessions.Count > 1 ? $"媒体 {sessions.Count}" : "媒体";
+            PluginsTab.Foreground = Brush(showPlugins ? "#F2F2F4" : "#83838F");
+            PluginsTab.Background = Brush(showPlugins ? "#24242B" : "#08080A");
             SetVisible(PageControls, pageCount > 1);
             if (_renderKey != key)
             {
@@ -368,10 +385,15 @@ public partial class MainWindow : Window
     {
         var primary = sessions.FirstOrDefault();
         bool playing = sessions.Any(s => s.IsPlaying);
+        SetVisible(CompactCovers, primary is not null);
         SetVisible(SecondCover, sessions.Count > 1);
         SetVisible(AudioBars, sessions.Count > 0);
+        Grid.SetColumn(ClockLabel, primary is null ? 0 : 2);
+        Grid.SetColumnSpan(ClockLabel, primary is null ? 3 : 1);
+        ClockLabel.FontSize = primary is null ? 16 : 14;
+        if (ClockLabel.Text.Length == 0) ClockLabel.Text = DateTime.Now.ToString("HH:mm");
         AudioBars.Opacity = _settings.Quiet ? 0.3 : playing ? 1 : 0.35;
-        CompactGlyph.Text = primary is null ? "\uE8F2" : "\uE8D6";
+        CompactGlyph.Text = primary is null ? "" : "\uE8D6";
         string artwork = string.Join("|", sessions.Take(2).Select(s => s.SessionId + s.ArtworkPath));
         if (_compactState != artwork)
         {
@@ -414,6 +436,7 @@ public partial class MainWindow : Window
     }
     private CardView FromEvent(IslandEvent item, IReadOnlyList<MediaSessionSnapshot> sessions)
     {
+        if (item.Kind == IslandEventKind.Plugin && FindPluginCard(item.Id) is { } plugin) return FromPlugin(plugin);
         var session = item.Kind == IslandEventKind.Media ? sessions.FirstOrDefault(s => s.SessionId == item.AppId) : null;
         return session is not null ? FromMedia(session) : new(item, _settings.HideContent, LoadArtwork(item.ArtworkPath));
     }
@@ -446,8 +469,10 @@ public partial class MainWindow : Window
     }
     private void OpenActivity()
     {
+        bool openingPlugin = _view == IslandView.Automatic && _scheduler.VisibleItems.FirstOrDefault()?.Kind == IslandEventKind.Plugin;
         _activityOrder.Clear();
-        _notificationsTab = OrderedSessions.Count == 0 && NotificationHistory.Count > 0;
+        _notificationsTab = !openingPlugin && OrderedSessions.Count == 0 && NotificationHistory.Count > 0;
+        _pluginsTab = openingPlugin || OrderedSessions.Count == 0 && !_notificationsTab && CurrentPluginCards.Count > 0;
         ChangeView(IslandView.Activity);
     }
     private void Collapse() { _scheduler.Clear(); ChangeView(IslandView.Automatic); }
@@ -474,8 +499,8 @@ public partial class MainWindow : Window
     private void ControlCenter_RightClick(object sender, MouseButtonEventArgs e) { ChangeView(IslandView.ControlCenter); e.Handled = true; }
     private void Settings_Click(object sender, RoutedEventArgs e) { ChangeView(IslandView.Settings); e.Handled = true; }
     private void Collapse_Click(object sender, RoutedEventArgs e) { Collapse(); e.Handled = true; }
-    private void MediaTab_Click(object sender, RoutedEventArgs e) { _notificationsTab = false; _page = 0; Render(); e.Handled = true; }
-    private void NotificationsTab_Click(object sender, RoutedEventArgs e) { _notificationsTab = true; _page = 0; Render(); e.Handled = true; }
+    private void MediaTab_Click(object sender, RoutedEventArgs e) { _pluginsTab = false; _notificationsTab = false; _page = 0; Render(); e.Handled = true; }
+    private void NotificationsTab_Click(object sender, RoutedEventArgs e) { _pluginsTab = false; _notificationsTab = true; _page = 0; Render(); e.Handled = true; }
     private void ClearNotifications_Click(object sender, RoutedEventArgs e)
     {
         _scheduler.ClearNotifications();
@@ -487,7 +512,7 @@ public partial class MainWindow : Window
     private void Island_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e) { _hover = false; }
     private void Island_MouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if (_view is IslandView.Settings or IslandView.ControlCenter) return;
+        if (_view is IslandView.Settings or IslandView.ControlCenter or IslandView.PluginSettings) return;
         Navigate(e.Delta > 0 ? -1 : 1); e.Handled = true;
     }
     private void Navigate(int direction)
@@ -495,7 +520,7 @@ public partial class MainWindow : Window
         if (_view == IslandView.Automatic) { if (direction > 0) _scheduler.NextPage(); else _scheduler.PreviousPage(); }
         else
         {
-            int count = _notificationsTab ? NotificationHistory.Count : OrderedSessions.Count;
+            int count = _pluginsTab ? CurrentPluginCards.Count : _notificationsTab ? NotificationHistory.Count : OrderedSessions.Count;
             int pages = Math.Max(1, (count + 1) / 2);
             _page = (_page + direction + pages) % pages;
         }
@@ -546,7 +571,7 @@ public partial class MainWindow : Window
         _exampleMode = true;
         // Preview history, dismissal state and duplicate IDs never enter the live scheduler.
         _scheduler = new IslandScheduler { ExpireVisibleItems = _settings.AutoCollapseSeconds != 0 };
-        _hiddenHistory.Clear(); _activityOrder.Clear(); _preferredSessionId = null;
+        _hiddenHistory.Clear(); _activityOrder.Clear(); _preferredSessionId = null; _pluginsTab = false;
         _examples = new[]
         {
             new MediaSessionSnapshot("demo.music", "demo.music", "音乐 · 示例", "Clair de lune", "Claude Debussy", null, true, false, true, true, true),
@@ -755,6 +780,7 @@ public partial class MainWindow : Window
         if (_closing) return;
         _closing = true; _timer.Stop(); _stop.Cancel(); _topmost?.Dispose(); _contentTransition?.Dispose(); _motion?.Dispose();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= DisplaysChanged;
+        _plugins?.Dispose();
         _notifications.Dispose(); _media.Dispose(); _tray?.ContextMenuStrip?.Dispose(); _tray?.Dispose(); _trayIcon?.Dispose();
         System.Windows.Application.Current.Shutdown();
     }
@@ -764,12 +790,12 @@ public partial class MainWindow : Window
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] private static extern IntPtr SetWindowLongPtr(IntPtr hwnd, int index, IntPtr value);
 
-    private sealed class CardView
+    private sealed partial class CardView
     {
         public string Id { get; } = "";
         public string SessionId { get; } = "";
         public double CardWidth { get; set; }
-        public double SourceWidth => Math.Max(50, CardWidth - 58 - (IsMedia ? 0 : 32));
+        public double SourceWidth => Math.Max(50, CardWidth - 58 - (IsMedia || IsPlugin ? 0 : 32));
         public Thickness Divider { get; set; }
         public double CoverSize { get; set; } = 92;
         public double TitleSize { get; set; } = 22;
@@ -788,10 +814,10 @@ public partial class MainWindow : Window
         public SolidColorBrush Accent { get; }
         public SolidColorBrush AccentBackground { get; }
         public Visibility MediaVisibility => IsMedia ? Visibility.Visible : Visibility.Collapsed;
-        public Visibility DismissVisibility => IsMedia ? Visibility.Collapsed : Visibility.Visible;
+        public Visibility DismissVisibility => IsMedia || IsPlugin ? Visibility.Collapsed : Visibility.Visible;
         public BitmapSource? Artwork { get; }
         public Brush AmbientBrush { get; }
-        public string Key => $"{Id}:{SessionId}:{Title}:{Body}:{Artwork?.GetHashCode()}:{PlayPauseLabel}:{CanTogglePlayPause}:{CanGoNext}:{CanGoPrevious}";
+        public string Key => $"{Id}:{SessionId}:{Title}:{Body}:{Artwork?.GetHashCode()}:{PlayPauseLabel}:{CanTogglePlayPause}:{CanGoNext}:{CanGoPrevious}:{PluginKey}";
         public CardView(MediaSessionSnapshot session, BitmapSource? image, AlbumPalette palette, bool busy)
         {
             IsMedia = true; SessionId = session.SessionId; Source = session.AppName;

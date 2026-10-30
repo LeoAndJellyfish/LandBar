@@ -9,7 +9,7 @@ on:
       tag:
         description: Published version tag to download and verify
         required: true
-        default: v0.3.10
+        default: v0.4.0
         type: string
 
 permissions:
