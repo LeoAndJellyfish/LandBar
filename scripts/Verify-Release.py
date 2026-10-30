@@ -65,8 +65,9 @@ def main():
               {"curlExitCode": result.returncode})
         check(f"Download length for {filename}", destination.stat().st_size == asset["size"],
               {"expected": asset["size"], "actual": destination.stat().st_size})
-        if asset.get("digest", "").startswith("sha256:"):
-            check(f"GitHub asset digest for {filename}", digest(destination) == asset["digest"][7:])
+        asset_digest = asset.get("digest") or ""
+        if asset_digest.startswith("sha256:"):
+            check(f"GitHub asset digest for {filename}", digest(destination) == asset_digest[7:])
         return destination
 
     try:
