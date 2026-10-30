@@ -22,6 +22,8 @@ internal static class Program
         Directory.CreateDirectory(communication);
         var failures = new List<string>();
         var checks = new List<object>();
+        var skips = new List<object>();
+        object? activationDiagnostic = null;
         Process? fixture = null;
         TopmostWindowController? controller = null;
         var surface = new Border { Width = 208, Height = 44, HorizontalAlignment = HorizontalAlignment.Center,
@@ -92,10 +94,39 @@ internal static class Program
                 Check("A topmost window moving over the pill triggers recovery", Native.IsBefore(handle, fixtureHandle));
                 Check("Recovery preserves the existing foreground window", Native.GetForegroundWindow() == foreground);
 
-                await Command("activate"); await Settled();
-                Check("An activated competing window recovers below the island", Native.IsBefore(handle, fixtureHandle));
-                Check("The external fixture retains keyboard focus", Native.GetForegroundWindow() == fixtureHandle,
-                    new { actual = Native.GetForegroundWindow().ToInt64(), expected = fixtureHandle.ToInt64() });
+                await Command("activate");
+                var activation = JsonSerializer.Deserialize<ActivationAcknowledgement>(File.ReadAllText(
+                    Path.Combine(communication, $"activation-{sequence}.json")))
+                    ?? throw new InvalidDataException("Fixture activation acknowledgement was empty.");
+                if (activation.Sequence != sequence || activation.FixtureHandle != fixtureHandle.ToInt64())
+                    throw new InvalidDataException("Fixture activation acknowledgement did not match the request.");
+                bool fixtureObtainedFocus = activation.ForegroundImmediatelyAfter == fixtureHandle.ToInt64();
+                await Settled();
+                long settledForeground = Native.GetForegroundWindow().ToInt64();
+                activationDiagnostic = new { request = activation, fixtureObtainedFocus, settledForeground };
+                Check(fixtureObtainedFocus ? "An activated competing window recovers below the island" :
+                    "A competing window recovers below the island after the activation request",
+                    Native.IsBefore(handle, fixtureHandle), new { fixtureObtainedFocus });
+                if (fixtureObtainedFocus)
+                {
+                    Check("The external fixture retains keyboard focus", settledForeground == fixtureHandle.ToInt64(),
+                        new { actual = settledForeground, expected = fixtureHandle.ToInt64() });
+                }
+                else if (!activation.SetForegroundWindowSucceeded)
+                {
+                    const string name = "The external fixture retains keyboard focus";
+                    const string reason = "Windows rejected the fixture activation request; the fixture never obtained focus.";
+                    skips.Add(new { name, reason, detail = activation });
+                    Console.WriteLine($"SKIP {name}: {reason}");
+                    Check("Rejected fixture activation preserves the actual foreground window",
+                        settledForeground == activation.ForegroundImmediatelyAfter,
+                        new { beforeRecovery = activation.ForegroundImmediatelyAfter, afterRecovery = settledForeground });
+                }
+                else
+                {
+                    Check("The external fixture retains keyboard focus", false,
+                        new { reason = "Activation reported success without the fixture obtaining focus.", detail = activation, settledForeground });
+                }
 
                 var popup = new Window { Owner = window, Title = "Own popup", Left = 335, Top = 90, Width = 190, Height = 44,
                     Topmost = true, ShowActivated = false, ShowInTaskbar = false, WindowStyle = WindowStyle.None, Background = Brushes.DimGray };
@@ -146,7 +177,8 @@ internal static class Program
                 File.WriteAllText(Path.Combine(folder, "report.json"), JsonSerializer.Serialize(new
                 {
                     assemblyVersion = typeof(TopmostWindowController).Assembly.GetName().Version?.ToString(),
-                    passed = failures.Count == 0, checks, failures, controllerRepairCount = controller?.RepairCount,
+                    passed = failures.Count == 0, fullyVerified = failures.Count == 0 && skips.Count == 0,
+                    checks, skips, failures, activation = activationDiagnostic, controllerRepairCount = controller?.RepairCount,
                     suppressionCount = controller?.SuppressedRepairCount,
                     usesOnlyOwnedFixtures = true, readsUserWindowText = false, changesUserConfiguration = false
                 }, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true }));
@@ -180,7 +212,15 @@ internal static class Program
                 var hwnd = new WindowInteropHelper(window).Handle;
                 if (parts[1] == "exit") { File.WriteAllText(Path.Combine(folder, "ack"), parts[0]); timer.Stop(); app.Shutdown(); return; }
                 Native.SetWindowPos(hwnd, new IntPtr(-1), int.Parse(parts[2]), int.Parse(parts[3]), int.Parse(parts[4]), int.Parse(parts[5]), 0x0010);
-                if (parts[1] == "activate") Native.SetForegroundWindow(hwnd);
+                if (parts[1] == "activate")
+                {
+                    long beforeActivation = Native.GetForegroundWindow().ToInt64();
+                    bool activated = Native.SetForegroundWindow(hwnd);
+                    long immediatelyAfterActivation = Native.GetForegroundWindow().ToInt64();
+                    var acknowledgement = new ActivationAcknowledgement(int.Parse(parts[0]), activated,
+                        beforeActivation, immediatelyAfterActivation, hwnd.ToInt64());
+                    File.WriteAllText(Path.Combine(folder, $"activation-{parts[0]}.json"), JsonSerializer.Serialize(acknowledgement));
+                }
                 File.WriteAllText(Path.Combine(folder, "ack"), parts[0]);
             }
             catch (IOException) { }
@@ -188,6 +228,9 @@ internal static class Program
         window.Show();
         return app.Run();
     }
+
+    private sealed record ActivationAcknowledgement(int Sequence, bool SetForegroundWindowSucceeded,
+        long ForegroundBefore, long ForegroundImmediatelyAfter, long FixtureHandle);
 
     private static class Native
     {
