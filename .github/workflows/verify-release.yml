@@ -1,0 +1,52 @@
+name: Verify Release
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published version tag to download and verify
+        required: true
+        default: v0.3.10
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-release-${{ github.event_name }}-${{ inputs.tag || github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Download and validate public assets
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout trusted verification code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download release without authentication and verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag || github.event.workflow_run.head_branch }}
+          EXPECTED_COMMIT: ${{ github.event.workflow_run.head_sha || '' }}
+        run: >-
+          python3 scripts/Verify-Release.py
+          --repository "$RELEASE_REPOSITORY"
+          --tag "$RELEASE_TAG"
+          --expected-commit "$EXPECTED_COMMIT"
+          --output artifacts/release-verification
+      - name: Upload verification report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: public-release-verification-${{ github.run_id }}
+          path: artifacts/release-verification/verification.json
+          if-no-files-found: warn
+          retention-days: 30

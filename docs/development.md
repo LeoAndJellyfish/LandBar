@@ -82,7 +82,7 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 2. 确认该提交的 Windows CI 通过。
 3. 创建与版本一致的 `v<Version>` 标签，例如 `v0.3.10`，推送该标签。
 4. [Release 工作流](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/release.yml)校验标签与项目版本，再构建并上传 ZIP 和校验记录。
-5. 核对 Release 指向的提交，并下载验证归档及 SHA-256。
+5. [发布校验工作流](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/verify-release.yml)从公开地址下载 ZIP 与校验文件，检查版本、归档内容和 SHA-256；也可在 Actions 中指定标签手动运行。
 
 发布阶段以 GitHub Actions 生成的文件为准。身份注册、首次授权弹窗和实际桌面行为在交互环境中复核。
 
