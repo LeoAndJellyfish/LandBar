@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Verify and package · Windows x64
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Verify release tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          [xml]$project = Get-Content src/LandBar/LandBar.csproj -Raw
+          $version = $project.SelectSingleNode('/Project/PropertyGroup/Version').InnerText
+          if ($env:RELEASE_TAG -ne "v$version") { throw "Tag and project version differ." }
+          if (-not (Test-Path -LiteralPath "docs/releases/$($env:RELEASE_TAG).md")) { throw 'Release notes are missing.' }
+      - name: Tests and application build
+        run: ./scripts/Test.ps1
+      - name: Package
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: ./scripts/Package.ps1 -Version $env:RELEASE_TAG -OutputDirectory artifacts/release
+      - name: Upload release candidate
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-win-x64
+          path: |
+            artifacts/release/LandBar-v*-win-x64.zip
+            artifacts/release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release notes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download the verified candidate
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-win-x64
+          path: release-assets
+      - name: Publish archive and checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd release-assets && sha256sum --check SHA256SUMS.txt)
+          expected_commit="$(git rev-parse HEAD)"
+          tagged_commit="$(gh api "repos/$GH_REPO/commits/$RELEASE_TAG" --jq '.sha')"
+          test "$expected_commit" = "$tagged_commit"
+          if gh release view "$RELEASE_TAG" --json isDraft > release-state.json 2>/dev/null; then
+            test "$(jq -r '.isDraft' release-state.json)" = true || { echo 'This version is already published.' >&2; exit 1; }
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --target "$expected_commit" --draft \
+              --title "LandBar $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+          fi
+          # A rerun may repair this workflow's unpublished draft. Published releases are immutable here.
+          gh release upload "$RELEASE_TAG" release-assets/LandBar-v*-win-x64.zip release-assets/SHA256SUMS.txt --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --latest

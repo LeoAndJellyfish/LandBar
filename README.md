@@ -1,0 +1,88 @@
+<p align="center">
+  <img src="docs/images/landbar.svg" width="80" height="80" alt="LandBar 胶囊波形图标">
+</p>
+
+<h1 align="center">LandBar</h1>
+
+<p align="center">Windows 顶部的消息与媒体悬浮栏</p>
+
+<p align="center">
+  <a href="https://github.com/LeoAndJellyfish/LandBar/actions/workflows/ci.yml"><img src="https://github.com/LeoAndJellyfish/LandBar/actions/workflows/ci.yml/badge.svg" alt="Windows CI"></a>
+  <a href="https://github.com/LeoAndJellyfish/LandBar/releases/latest"><img src="https://img.shields.io/github/v/release/LeoAndJellyfish/LandBar?label=Release&color=BEDDC9&style=flat-square" alt="最新版本"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/LeoAndJellyfish/LandBar/releases/latest">下载 Windows x64 版</a> ·
+  <a href="docs/installation.md">安装说明</a> ·
+  <a href="docs/development.md">开发与构建</a>
+</p>
+
+<p align="center">
+  <img src="docs/images/media-preview.png" width="792" alt="LandBar 内置媒体示例：两个播放器并列显示，各自提供播放控制">
+</p>
+
+LandBar 在桌面顶部显示一个紧凑胶囊。收到新通知或切换歌曲时，胶囊展开显示内容；单击可查看通知、切换媒体来源和控制播放。深色圆角界面搭配 Noto Sans SC 字体，展开与收起围绕顶部中心过渡，文字保持原始大小。
+
+## 开始使用
+
+适用于 **Windows 10 2004（19041）及以上版本、Windows 11，x64**。发布包自带 .NET 运行环境。
+
+当前公开版本采用**未签名的开发身份包**，首次安装需要手动开启 Windows 开发者模式。
+
+1. 从 [Releases](https://github.com/LeoAndJellyfish/LandBar/releases/latest) 下载 Windows x64 ZIP，完整解压至固定目录。
+2. 在 Windows 设置中搜索并手动开启“开发者模式”。
+3. 双击解压目录中的 `安装并启动.cmd`，完成应用身份注册并启动。
+4. 右键灵动岛或单击托盘中的 **LandBar**，进入“控制中心 → 设置”，按页面提示授予通知访问权限。
+
+以后双击 `启动.cmd` 即可运行。更新、卸载、签名包和常见问题见 [安装说明](docs/installation.md)。
+
+## 日常操作
+
+| 操作 | 结果 |
+| --- | --- |
+| 单击胶囊 | 展开“媒体”和“通知”页 |
+| 右键胶囊／单击托盘图标 | 打开控制中心，进入设置或预览 |
+| 点击上一首、播放／暂停、下一首 | 控制对应媒体来源，其他来源保持原状态 |
+| 点击分页箭头／滚动滚轮 | 查看更多媒体或通知 |
+| 通知页点击“清空消息” | 清理岛内通知历史和待展示消息，保留媒体 |
+| 点击收起按钮／按 Esc | 收起面板 |
+
+两个媒体来源可以并列显示，暂停的来源也可继续查看。通知与切歌的自动提示最多并列两条，更多提示每 **4 秒**轮换；悬停时暂停轮换。
+
+设置页可选择 **1–5 秒无操作后收起**或**永不收起**，默认 5 秒。点击、滚动、键盘输入、岛内鼠标移动和新事件会重新计时，静止悬停按所选时长收起。设置中还可隐藏消息内容、暂停弹出提示、启用登录启动，以及调整显示器和顶部间距。
+
+<details>
+<summary>查看控制中心与设置</summary>
+
+<p>
+  <img src="docs/images/control-center.png" width="356" alt="控制中心：设置、暂停提示、预览、返回活动和退出">
+  <img src="docs/images/settings.png" width="356" alt="设置页：通知授权、内容隐藏、登录启动、自动收起时间与显示位置">
+</p>
+
+</details>
+
+## 接入范围
+
+通知来自 **Windows 通知中心**，媒体来自 **Windows 系统媒体会话**。应用提供的通知内容、媒体信息和控制能力决定岛内可显示及操作的内容。
+
+- **系统通知**：接收应用提交给 Windows 通知中心的新消息；历史保存在进程内，退出后清空。
+- **系统媒体**：展示接入系统媒体控制的播放器与浏览器，支持独立会话和播放状态同步。
+- **微信正文**：当前尚无独立接入。任务栏红点、闪烁和提示音属于其他提醒渠道，相关正文仍需单独适配。QQ 等应用也以其实际系统通知输出为准。
+- **内置预览**：使用明确标注“示例”的通知和媒体，与真实通知队列分离；结束预览后恢复实际来源。
+
+显示设置存于 `%LOCALAPPDATA%\LandBar\settings.json`，封面缓存位于同目录的 `Artwork` 文件夹。通知正文保存在内存中，诊断日志记录异常类型。
+
+## 开发
+
+项目使用 **C#、WPF 与 .NET 10**。构建和测试需要 Windows；身份包构建还需要 Windows SDK 中的 MakeAppx。
+
+```powershell
+git clone https://github.com/LeoAndJellyfish/LandBar.git
+cd LandBar
+dotnet build src/LandBar/LandBar.csproj -c Release
+./scripts/Test.ps1
+```
+
+CI 检查核心逻辑、媒体选择、动画数学、配色、字体资源及构建。依赖交互桌面的窗口、置顶与系统媒体测试单独运行。打包流程、测试分类和发布约定见 [开发文档](docs/development.md)。
+
+问题反馈可提交到 [Issues](https://github.com/LeoAndJellyfish/LandBar/issues)，请注明 Windows 版本、LandBar 版本、来源应用及复现步骤。字体与运行时的分发声明见 [第三方声明](THIRD_PARTY_NOTICES.md)。

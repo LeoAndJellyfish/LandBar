@@ -1,0 +1,45 @@
+name: Windows CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Test and package · Windows x64
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Tests and application build
+        run: ./scripts/Test.ps1
+      - name: Package the self-contained application
+        run: ./scripts/Package.ps1 -OutputDirectory artifacts/ci-release
+      - name: Upload validated package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: LandBar-win-x64
+          path: |
+            artifacts/ci-release/LandBar-v*-win-x64.zip
+            artifacts/ci-release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14

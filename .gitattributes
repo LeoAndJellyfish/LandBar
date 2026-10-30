@@ -1,0 +1,18 @@
+* text=auto
+src/LandBar/Assets/Fonts/OFL.txt whitespace=-blank-at-eol
+*.cs text eol=lf
+*.xaml text eol=lf
+*.csproj text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.py text eol=lf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.svg text eol=lf
+*.png binary
+*.ico binary
+*.ttf binary
+*.zip binary
+*.rtf binary

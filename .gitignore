@@ -1,0 +1,30 @@
+**/bin/
+**/obj/
+artifacts/
+dist/
+/releases/
+.vs/
+*.user
+*.suo
+__pycache__/
+*.py[cod]
+
+# Local build output, application state and credentials.
+*.log
+.env
+.env.*
+*.pfx
+*.p12
+*.pem
+*.key
+smoke-result.json
+notification-test-result.json
+
+# Development evidence stays local; public documentation lives beside docs/images/.
+/docs/evidence-*/
+/docs/plans/
+/docs/verification*.md
+/docs/typography*.md
+/docs/design*.md
+/docs/*.png
+/docs/*.mp4
