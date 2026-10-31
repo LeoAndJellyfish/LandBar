@@ -47,6 +47,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("View contributions disappear on fault, EOF, exit, removal and disposal", ViewTests.Withdrawal),
     ("Selected-slot context uses real pipes and rejects invalid or oversized data", ViewTests.Context),
     ("Idle slot root dimensions retain their inclusive display limits", ViewTests.IdleBounds),
+    ("Side widgets explicitly declare fixed or user-selectable placement", ViewTests.Placement),
+    ("Missing, contradictory and malformed placement declarations are rejected", ViewTests.PlacementValidation),
+    ("Placement-only changes refresh views while equivalent side sets stay unchanged", ViewTests.PlacementUpdates),
     ("Providers publish independent named tabs and title-only updates", ViewTests.Tabs),
     ("Tab titles enforce single-line UTF16 limits with Chinese and emoji", ViewTests.TabTitles),
     ("Bundled pixel animation sample publishes views and handles palette changes", ViewTests.PixelSample)

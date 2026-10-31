@@ -3,6 +3,12 @@ param([switch]$IncludeDesktop)
 $ErrorActionPreference = 'Stop'
 $workspacePath = Split-Path $PSScriptRoot -Parent
 # The default gate has no window, session, notification-permission or user-settings dependency.
+Write-Host 'Running Codex public sample tests with synthetic app-server data'
+& python -m unittest discover -s (Join-Path $workspacePath 'tests/LandBar.CodexPlugin.Tests') -p 'test_*.py'
+if ($LASTEXITCODE -ne 0) { throw "Codex public sample tests failed with exit code $LASTEXITCODE." }
+Write-Host 'Running public example archive checks'
+& python -m unittest discover -s (Join-Path $workspacePath 'tests/LandBar.Release.Tests') -p 'test_*.py'
+if ($LASTEXITCODE -ne 0) { throw "Public example archive checks failed with exit code $LASTEXITCODE." }
 $projects = @(
     'LandBar.Core.Tests',
     'LandBar.Plugins.Tests',
@@ -30,5 +36,8 @@ if ($IncludeDesktop) {
         & dotnet run --project (Join-Path $workspacePath "tests/$project") -c Release -- $outputPath
         if ($LASTEXITCODE -ne 0) { throw "$project failed with exit code $LASTEXITCODE." }
     }
+    & dotnet run --project (Join-Path $workspacePath 'tests/LandBar.PluginViews.Smoke') -c Release -- `
+        (Join-Path $workspacePath 'artifacts/tests/CodexPublicViews') --codex-only
+    if ($LASTEXITCODE -ne 0) { throw "Codex public view checks failed with exit code $LASTEXITCODE." }
 }
 Write-Host 'LandBar checks passed.'

@@ -1,5 +1,6 @@
 """Verify a published release by downloading its public assets; never executes archive contents."""
 import argparse
+import ast
 import hashlib
 import io
 import json
@@ -12,6 +13,46 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
+
+
+def approved_plugin_files(version):
+    """Versioned public examples, with exact paths rather than provider-directory wildcards."""
+    providers = {}
+    if version >= (0, 4, 0):
+        providers["focus-timer"] = ("plugin.json", "plugin.ps1", "README.md")
+    if version >= (0, 5, 0):
+        providers["pixel-pet"] = ("plugin.json", "plugin.ps1", "README.md")
+    if version >= (0, 6, 0):
+        providers["codex-balance"] = ("plugin.json", "plugin.py", "README.md")
+    return {f"app/PluginExamples/{provider}/{filename}"
+            for provider, filenames in providers.items() for filename in filenames}
+
+
+def verify_plugin_examples(archive, version, check):
+    expected = approved_plugin_files(version)
+    actual = {name for name in archive.namelist() if name.casefold().startswith("app/pluginexamples/")}
+    check("Only exact approved public plugin files are bundled", actual == expected,
+          {"missing": sorted(expected - actual), "unexpected": sorted(actual - expected)})
+    for provider in ("focus-timer", "pixel-pet", "codex-balance"):
+        prefix = f"app/PluginExamples/{provider}/"
+        if prefix + "plugin.json" not in expected:
+            continue
+        manifest_bytes = archive.read(prefix + "plugin.json")
+        check(f"{provider} manifest size", len(manifest_bytes) <= 16 * 1024)
+        manifest = json.loads(manifest_bytes.decode("utf-8-sig"))
+        check(f"{provider} declares supported protocol", manifest.get("id") == provider and
+              manifest.get("protocolVersion") == 1)
+        if provider == "codex-balance":
+            check("Codex example uses a portable Python launcher", manifest.get("command") == "py.exe" and
+                  manifest.get("arguments") == ["-3", "-u", "plugin.py"])
+            source = archive.read(prefix + "plugin.py")
+            check("Codex example source size", 0 < len(source) <= 128 * 1024)
+            ast.parse(source.decode("utf-8-sig"), filename="codex-balance/plugin.py")
+            check("Codex example contains valid Python source", True)
+        else:
+            check(f"{provider} uses Windows PowerShell", manifest.get("command") == "powershell.exe")
+            check(f"{provider} preserves PowerShell encoding",
+                  archive.read(prefix + "plugin.ps1").startswith(b"\xef\xbb\xbf"))
 
 
 def main():
@@ -109,7 +150,7 @@ def main():
         with zipfile.ZipFile(archive_path) as archive:
             infos = archive.infolist()
             names = [entry.filename for entry in infos]
-            check("Archive paths are relative and unique", len(names) == len(set(names)) and
+            check("Archive paths are relative and unique", len(names) == len({name.casefold() for name in names}) and
                   all(not name.startswith("/") and "\\" not in name and
                       ".." not in PurePosixPath(name).parts and ":" not in name for name in names))
             check("Archive expansion is bounded", len(names) < 2000 and
@@ -129,24 +170,13 @@ def main():
                                  "app/PluginExamples/focus-timer/README.md"})
             check("Required application, identity, documentation and license files", required.issubset(names),
                   {"missing": sorted(required.difference(names))})
-            if tuple(map(int, args.tag[1:].split("."))) >= (0, 5, 0):
-                pixel_files = {f"app/PluginExamples/pixel-pet/{name}" for name in ("plugin.json", "plugin.ps1", "README.md")}
-                check("Pixel animation example is bundled", pixel_files.issubset(names))
-                pixel = json.loads(archive.read("app/PluginExamples/pixel-pet/plugin.json").decode("utf-8-sig"))
-                check("Pixel example uses the supported view protocol", pixel.get("id") == "pixel-pet" and pixel.get("protocolVersion") == 1)
-                check("Pixel example preserves PowerShell encoding", archive.read("app/PluginExamples/pixel-pet/plugin.ps1").startswith(b"\xef\xbb\xbf"))
-                providers = {PurePosixPath(name).parts[2] for name in names if name.startswith("app/PluginExamples/")}
-                check("Only approved public plugin examples are bundled", providers == {"focus-timer", "pixel-pet"}, sorted(providers))
-            if tuple(map(int, args.tag[1:].split("."))) >= (0, 4, 0):
-                example = json.loads(archive.read("app/PluginExamples/focus-timer/plugin.json").decode("utf-8-sig"))
-                check("Bundled plugin declares supported protocol", example.get("id") == "focus-timer" and
-                      example.get("protocolVersion") == 1 and example.get("command") == "powershell.exe")
-                check("PowerShell 5.1 sample retains UTF-8 BOM",
-                      archive.read("app/PluginExamples/focus-timer/plugin.ps1").startswith(b"\xef\xbb\xbf"))
-            blocked = {"smoke-result.json", "notification-test-result.json", "settings.json", "deployment.json", "diagnostics.log"}
+            verify_plugin_examples(archive, tuple(map(int, args.tag[1:].split("."))), check)
+            blocked = {"smoke-result.json", "notification-test-result.json", "settings.json", "deployment.json", "diagnostics.log",
+                       "auth.json", "accounts.json", "config.toml"}
             forbidden = [name for name in names if name.lower().endswith(".pdb") or
+                         name.lower().endswith((".pyc", ".pyo", ".bak")) or
                          PurePosixPath(name).name.lower() in blocked or
-                         any(part.lower() in ("artifacts", "obj", "bin", "artwork") or
+                         any(part.lower() in ("artifacts", "obj", "bin", "artwork", "__pycache__", ".codex") or
                              part.lower().startswith("evidence-v") for part in PurePosixPath(name).parts)]
             check("No symbols, runtime cache or local diagnostic evidence", not forbidden, forbidden)
             check("README image assets present", any(name.startswith("docs/images/") for name in names))

@@ -10,5 +10,6 @@
     <ProjectReference Include="../../src/LandBar/LandBar.csproj" />
     <None Include="../../src/LandBar/App.xaml" Link="Production-App.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../samples/pixel-pet/*" Link="Samples/pixel-pet/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../samples/codex-balance/plugin.py" Link="Samples/codex-balance/plugin.py" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,9 @@
+{
+  "id": "codex-balance",
+  "name": "Codex 额度",
+  "version": "1.0.0",
+  "description": "查看本机 Codex 登录账号的套餐额度、额外积分及重置时间。",
+  "command": "py.exe",
+  "arguments": ["-3", "-u", "plugin.py"],
+  "protocolVersion": 1
+}

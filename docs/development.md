@@ -6,6 +6,7 @@
 - [global.json](https://github.com/LeoAndJellyfish/LandBar/blob/main/global.json) 指定的 .NET 10 SDK（当前为 10.0.403）。
 - Windows SDK，提供 `MakeAppx.exe`；签名构建还使用 `SignTool.exe`。
 - PowerShell 7（`pwsh`），用于测试、构建和打包脚本。
+- Python 3.10+，用于发布校验和 Codex 示例的隔离测试；安装 Codex CLI 后可运行该示例的实际额度查询。
 
 发布目标为 `win-x64`，应用项目使用 `net10.0-windows10.0.19041.0`。发布包自带 .NET 运行时。Python 与 Pillow 用于重新生成图标，常规编译使用仓库中已生成的资源。
 
@@ -28,7 +29,7 @@ dotnet run --project src/LandBar -c Release -- --demo --preview
 ./scripts/Test.ps1
 ```
 
-稳定检查覆盖核心调度、插件协议与真实子进程、媒体排序、封面内容缓存、动画数学、弹簧、配色及嵌入字体。封面缓存检查使用隔离目录，无需媒体会话。CI 同时构建应用和发布包，验证版本、归档内容与校验记录。具体任务以 [工作流配置](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/ci.yml)为准。
+稳定检查覆盖核心调度、插件协议与真实子进程、媒体排序、封面内容缓存、动画数学、弹簧、配色、嵌入字体和 Codex 示例。Codex 检查使用合成 app-server 响应，封面缓存检查使用隔离目录，两者均无需个人账号。CI 同时构建应用和发布包，验证版本、归档内容与校验记录。具体任务以 [工作流配置](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/ci.yml)为准。
 
 ### 交互桌面检查
 
@@ -53,7 +54,7 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 
 `Build.ps1` 先请求当前 `dist/app` 中的 LandBar 正常退出，再发布自包含程序，构建稀疏身份包并整理安装脚本。普通本地构建产物位于 `dist`。
 
-`Package.ps1` 从独立构建目录按白名单整理发布文件，保留正在运行的 `dist` 实例。默认生成 `releases/LandBar-v<Version>-win-x64.zip` 与 `releases/SHA256SUMS.txt`。可使用 `-Version v0.5.1` 校验指定版本，或通过 `-OutputDirectory` 指定输出目录。
+`Package.ps1` 从独立构建目录按白名单整理发布文件，保留正在运行的 `dist` 实例。默认生成 `releases/LandBar-v<Version>-win-x64.zip` 与 `releases/SHA256SUMS.txt`。可使用 `-Version v0.6.0` 校验指定版本，或通过 `-OutputDirectory` 指定输出目录。
 
 归档包含应用、身份文件、安装／启动／卸载脚本、使用文档、图片及第三方声明。本地通知、封面缓存、运行诊断和历史构建产物留在发布包之外。
 
@@ -80,7 +81,7 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 
 1. 在 `src/LandBar/LandBar.csproj` 更新 `Version`，提交代码与相应说明。
 2. 确认该提交的 Windows CI 通过。
-3. 创建与版本一致的 `v<Version>` 标签，例如 `v0.5.1`，推送该标签。
+3. 创建与版本一致的 `v<Version>` 标签，例如 `v0.6.0`，推送该标签。
 4. [Release 工作流](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/release.yml)校验标签与项目版本，再构建并上传 ZIP 和校验记录。
 5. [发布校验工作流](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/verify-release.yml)从公开地址下载 ZIP 与校验文件，检查版本、归档内容和 SHA-256；也可在 Actions 中指定标签手动运行。
 
@@ -112,8 +113,8 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 
 ## 插件开发
 
-插件通过独立进程接入，使用 stdin/stdout 交换 UTF-8 JSON Lines。插件可以发布和撤回卡片、创建独立命名标签，或通过声明式节点替换页面、添加收起态组件。宿主负责卡片布局与动画，插件负责数据和业务逻辑。
+插件通过独立进程接入，使用 stdin/stdout 交换 UTF-8 JSON Lines。插件可以发布和撤回卡片、创建独立命名标签，或通过声明式节点替换页面、添加收起态组件。侧边组件使用 `idle.widget`，必须声明 `placement.defaultSide` 和 `placement.allowedSides`，允许固定单侧或由用户选择左右侧。宿主负责布局与动画，插件负责数据和业务逻辑。
 
-清单、协议、开发示例及限制见 [插件开发文档](plugins.md)，可运行的示例位于 `samples/focus-timer` 和 `samples/pixel-pet`。本地插件目录与显示设置独立保留，更新发布包后仍可使用。
+清单、协议、开发示例及限制见 [插件开发文档](plugins.md)，可运行的示例位于 `samples/focus-timer`、`samples/pixel-pet` 和 `samples/codex-balance`。本地插件目录与显示设置独立保留；旧侧边插件按协议迁移说明补齐位置声明。
 
-用户插件目录位于 `%LOCALAPPDATA%\LandBar\Plugins`。构建与打包只收录仓库中列出的两个公开示例，用户插件、视图绑定和个人配置留在本机。
+用户插件目录位于 `%LOCALAPPDATA%\LandBar\Plugins`。构建与打包仅收录白名单中的三个公开示例源码。用户插件、视图绑定、账号凭据及额度快照留在本机。

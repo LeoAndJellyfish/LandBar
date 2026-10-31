@@ -183,7 +183,7 @@ public sealed class IslandContentTransition : IDisposable
                 }
                 bool paintedButton = element is ButtonBase button && button.Background is { Opacity: > 0 } background &&
                     (background is not SolidColorBrush solid || solid.Color.A > 0);
-                if (paintedButton || element is TextBlock or Shape || element is Image { Source: not null })
+                if (paintedButton || element is TextBlock or Shape or PluginRing or PluginRingLabel || element is Image { Source: not null })
                 {
                     var rect = transform.TransformBounds(new Rect(element.RenderSize));
                     rect.Intersect(restriction);

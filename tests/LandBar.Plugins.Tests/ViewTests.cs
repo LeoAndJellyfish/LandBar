@@ -200,6 +200,63 @@ internal static class ViewTests
         await manager.StopAsync("tabs"); Equal(0, manager.Views.Count);
     }
 
+    internal static async Task Placement()
+    {
+        using var data = new TestDirectory(); data.Add("positions", "view-placement-valid");
+        await using var manager = new PluginManager(data.Root); manager.Discover();
+        True(await manager.StartAsync("positions")); await Until(() => manager.Views.Count == 5);
+        var left = manager.Views.Single(view => view.Id == "fixed-left");
+        var right = manager.Views.Single(view => view.Id == "fixed-right");
+        var either = manager.Views.Single(view => view.Id == "either");
+        Equal("idle.widget", either.Slot); Equal("right", PluginViewPlacement.DefaultSide(either));
+        True(PluginViewPlacement.IsSideWidget(left)); True(PluginViewPlacement.SupportsSide(left, "left"));
+        True(!PluginViewPlacement.SupportsSide(left, "right")); True(!PluginViewPlacement.SupportsSide(right, "left"));
+        True(PluginViewPlacement.SupportsSide(right, "right"));
+        True(PluginViewPlacement.CanUseSlot(either, "idle.left") && PluginViewPlacement.CanUseSlot(either, "idle.right"));
+        True(!PluginViewPlacement.SupportsSide(either, "auto") && !PluginViewPlacement.CanUseSlot(either, "media.page"));
+        True(either.Placement!.AllowedSides.SequenceEqual(new[] { "left", "right" }));
+        True(PluginViewPlacement.CanUseSlot(manager.Views.Single(view => view.Id == "legacy-left"), "idle.right"));
+        True(PluginViewPlacement.CanUseSlot(manager.Views.Single(view => view.Id == "legacy-right"), "idle.right"));
+        try { ((IList<string>)either.Placement.AllowedSides)[0] = "right"; throw new Exception("Expected immutable sides"); }
+        catch (NotSupportedException) { }
+        var page = either with { Slot = "media.page", Placement = null };
+        True(!PluginViewPlacement.IsSideWidget(page)); True(PluginViewPlacement.DefaultSide(page) is null);
+        True(PluginViewPlacement.CanUseSlot(page, "media.page") && !PluginViewPlacement.CanUseSlot(page, "idle.left"));
+        True(!PluginViewPlacement.CanUseSlot(either with { Placement = null }, "idle.right"));
+    }
+
+    internal static async Task PlacementValidation()
+    {
+        foreach (string issue in new[] { "missing", "legacy-left-missing", "legacy-right-missing", "null", "string", "array",
+                     "empty-object", "missing-default", "missing-allowed", "invalid-default", "default-case", "invalid-side", "duplicate-side",
+                     "empty-sides", "three-sides", "allowed-type", "allowed-item-type", "default-not-member", "extra-field", "duplicate-default",
+                     "duplicate-allowed", "legacy-mismatch", "page", "content", "tab" })
+            await Invalid("view-placement-invalid-" + issue);
+    }
+
+    internal static async Task PlacementUpdates()
+    {
+        using var data = new TestDirectory(); data.Add("updates", "view-placement-updates");
+        await using var manager = new PluginManager(data.Root); manager.Discover();
+        True(await manager.StartAsync("updates")); await Until(() => manager.Views.Count == 1); await Task.Delay(30);
+        int changes = 0; manager.Changed += () => Interlocked.Increment(ref changes);
+        var original = manager.Views.Single();
+        True(await manager.ViewActionAsync("updates", "widget", "duplicate")); await Task.Delay(150);
+        Equal(0, changes); Equal(original.UpdatedAt, manager.Views.Single().UpdatedAt);
+        True(await manager.ViewActionAsync("updates", "widget", "reorder")); await Task.Delay(150);
+        Equal(0, changes); Equal(original.UpdatedAt, manager.Views.Single().UpdatedAt);
+        True(await manager.ViewActionAsync("updates", "widget", "lock"));
+        await Until(() => !PluginViewPlacement.SupportsSide(manager.Views.Single(), "right") && Volatile.Read(ref changes) > 0);
+        Equal(original.StableKey, manager.Views.Single().StableKey);
+        Equal(JsonSerializer.Serialize(original.Root), JsonSerializer.Serialize(manager.Views.Single().Root));
+        True(await manager.ViewActionAsync("updates", "widget", "unlock"));
+        await Until(() => PluginViewPlacement.SupportsSide(manager.Views.Single(), "right"));
+        int beforeDefault = Volatile.Read(ref changes);
+        True(await manager.ViewActionAsync("updates", "widget", "default"));
+        await Until(() => PluginViewPlacement.DefaultSide(manager.Views.Single()) == "right" && Volatile.Read(ref changes) > beforeDefault);
+        True(PluginViewPlacement.SupportsSide(manager.Views.Single(), "left"));
+    }
+
     internal static async Task TabTitles()
     {
         foreach (string suffix in new[] { "valid24", "unicode" })
@@ -230,7 +287,9 @@ internal static class ViewTests
         True(await manager.StartAsync("pixel-pet")); await Until(() => manager.Views.Count == 2);
         Equal(0, manager.Cards.Count);
         var avatar = manager.Views.Single(view => view.Id == "avatar");
-        Equal("idle.left", avatar.Slot); Equal(28.0, avatar.Root.Width); Equal(28.0, avatar.Root.Height);
+        Equal("idle.widget", avatar.Slot); Equal(28.0, avatar.Root.Width); Equal(28.0, avatar.Root.Height);
+        Equal("left", PluginViewPlacement.DefaultSide(avatar));
+        True(PluginViewPlacement.CanUseSlot(avatar, "idle.left") && PluginViewPlacement.CanUseSlot(avatar, "idle.right"));
         Equal(16, avatar.Root.Sprite!.PixelWidth); Equal(16, avatar.Root.Sprite.PixelHeight);
         Equal(4, avatar.Root.Sprite.Palette.Count); Equal(4, avatar.Root.Sprite.Frames.Count); Equal(4.0, avatar.Root.Sprite.Fps);
         True(avatar.Root.Sprite.Frames.All(frame => frame.Length == 256));
@@ -285,6 +344,7 @@ internal static class ViewFixture
 {
     internal static async Task<int> Run(string mode)
     {
+        if (mode.StartsWith("view-placement-", StringComparison.Ordinal)) return await PlacementFixture.Run(mode);
         if (mode == "view-tabs")
         {
             object tree = new { type = "column", children = new object[]
@@ -455,8 +515,20 @@ internal static class ViewFixture
         ["type"] = "sprite", ["pixelWidth"] = 2, ["pixelHeight"] = 2,
         ["palette"] = new[] { "#00000000", "#BEDDC9" }, ["frames"] = new[] { "0110", "1001" }, ["fps"] = 6
     };
-    private static Task View(object root, string slot = "plugins.page", string id = "panel", string? title = null) =>
-        Send(new { type = "view", id, slot, root, title = title ?? (slot == "activity.tab" ? id : null) });
+    private static Task View(object root, string slot = "plugins.page", string id = "panel", string? title = null)
+    {
+        var message = new Dictionary<string, object?>
+        {
+            ["type"] = "view", ["id"] = id, ["slot"] = slot, ["root"] = root,
+            ["title"] = title ?? (slot == "activity.tab" ? id : null)
+        };
+        if (slot is "idle.widget" or "idle.left" or "idle.right")
+        {
+            string side = slot == "idle.right" ? "right" : "left";
+            message["placement"] = new { defaultSide = side, allowedSides = new[] { side } };
+        }
+        return Send(message);
+    }
     private static async Task Send(object value) { await Console.Out.WriteLineAsync(JsonSerializer.Serialize(value)); await Console.Out.FlushAsync(); }
     private static async Task<int> Wait()
     {

@@ -17,9 +17,31 @@ public sealed record PluginCard(
 }
 
 /// <summary>Declarative UI owned by one provider run; selecting a view remains a host/user decision.</summary>
-public sealed record PluginView(string PluginId, string Id, string Slot, PluginNode Root, DateTimeOffset UpdatedAt, string? Title = null)
+public sealed record PluginView(string PluginId, string Id, string Slot, PluginNode Root, DateTimeOffset UpdatedAt,
+    string? Title = null, PluginPlacement? Placement = null)
 {
     public string StableKey => $"view:{PluginId}:{Id}";
+}
+
+/// <summary>The provider chooses supported sides; the user chooses within this declaration.</summary>
+public sealed record PluginPlacement(string DefaultSide, IReadOnlyList<string> AllowedSides);
+
+public static class PluginViewPlacement
+{
+    public static bool IsSideWidget(PluginView view) => view.Slot is "idle.widget" or "idle.left" or "idle.right";
+
+    public static bool SupportsSide(PluginView view, string side) => IsSideWidget(view) && side is "left" or "right" &&
+        view.Placement is { } placement && placement.AllowedSides.Contains(side, StringComparer.Ordinal);
+
+    public static string? DefaultSide(PluginView view) => view.Placement is { } placement && SupportsSide(view, placement.DefaultSide)
+        ? placement.DefaultSide : null;
+
+    public static bool CanUseSlot(PluginView view, string slot) => slot switch
+    {
+        "idle.left" => SupportsSide(view, "left"),
+        "idle.right" => SupportsSide(view, "right"),
+        _ => !IsSideWidget(view) && view.Slot == slot
+    };
 }
 
 public sealed record PluginSprite(
@@ -52,7 +74,7 @@ public static class PluginSlots
 {
     public static IReadOnlyList<string> All { get; } = Array.AsReadOnly(new[]
     {
-        "idle.left", "idle.right", "idle.content", "media.page", "notifications.page", "plugins.page",
+        "idle.widget", "idle.left", "idle.right", "idle.content", "media.page", "notifications.page", "plugins.page",
         "controlCenter.page", "settings.page", "pluginManagement.page", "activity.tab"
     });
 }

@@ -185,7 +185,7 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
         try
         {
             if (!await WriteAsync(runtime, new { type = "hello", protocolVersion = PluginProtocol.Version,
-                features = new[] { "cards", "views", "contexts", "tabs", "sprites" } }).ConfigureAwait(false))
+                features = new[] { "cards", "views", "contexts", "tabs", "sprites", "widgetPlacement" } }).ConfigureAwait(false))
                 return false;
             return await runtime.Ready.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         }
@@ -432,7 +432,8 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
                 var view = PluginProtocol.View(runtime.Definition.Manifest.Id, root, DateTimeOffset.UtcNow);
                 if (_views.TryGetValue(view.StableKey, out var existing))
                 {
-                    changed = view.Slot != existing.Slot || view.Title != existing.Title || !PluginProtocol.SameNode(view.Root, existing.Root);
+                    changed = view.Slot != existing.Slot || view.Title != existing.Title ||
+                        !PluginProtocol.SamePlacement(view.Placement, existing.Placement) || !PluginProtocol.SameNode(view.Root, existing.Root);
                     if (changed) _views[view.StableKey] = view;
                 }
                 else

@@ -8,7 +8,7 @@ LandBar 插件是本机独立程序，通过标准输入和标准输出交换 UT
 2. 安装随附示例，或打开插件目录并复制自己的插件文件夹。
 3. 刷新列表，查看插件名称、说明和状态，再手动启用。
 4. 插件发布的独立标签自动出现在活动页，标题由插件指定。旧卡片插件以自己的显示名称形成单独标签。
-5. 收起态组件和页面替换需要在管理页点击对应项目的“使用”；点击“还原”可取消该位置的选择。
+5. 收起态组件在管理页选择“左侧”或“右侧”；固定位置的组件显示其允许位置。页面替换点击“使用”，点击“还原”取消该位置的选择。
 
 插件目录为 `%LOCALAPPDATA%\LandBar\Plugins`。每个插件占用一个直接子目录，其中必须有 `plugin.json`；每次扫描最多读取 128 个子目录。新插件默认停用，已启用插件的选择保存在 LandBar 设置中。
 
@@ -24,14 +24,17 @@ Plugins/
    └─ plugin.ps1
 ```
 
-两个公开示例使用 Windows 自带的 PowerShell 5.1，源码随发布包位于 `app/PluginExamples`：
+三个公开示例的源码随发布包位于 `app/PluginExamples`。计时器和像素伙伴使用 Windows 自带的 PowerShell 5.1；Codex 额度示例需要 Python 3.10+ 和已通过 ChatGPT 登录的 Codex CLI：
 
 | 示例 | 功能 |
 | --- | --- |
 | [专注计时](https://github.com/LeoAndJellyfish/LandBar/tree/main/samples/focus-timer) | 25 分钟倒计时、暂停／继续、重置与 10 秒演示，使用卡片协议 |
-| [像素伙伴](https://github.com/LeoAndJellyfish/LandBar/tree/main/samples/pixel-pet) | 收起态像素动画、独立标签和配色切换，使用声明式视图协议 |
+| [像素伙伴](https://github.com/LeoAndJellyfish/LandBar/tree/main/samples/pixel-pet) | 可选左右侧的收起态像素动画、独立标签和配色切换，使用声明式视图协议 |
+| [Codex 额度](https://github.com/LeoAndJellyfish/LandBar/tree/main/samples/codex-balance) | 套餐剩余额度、重置时间、额外积分、独立标签及左右侧圆环，使用本机 Codex app-server |
 
-安装示例后仍需手动启用。像素伙伴的独立标签自动出现，左侧动画需单独点击“使用”。
+安装示例后仍需手动启用。像素伙伴的独立标签自动出现，收起态动画需单独选择“左侧”或“右侧”。
+
+Codex 示例的依赖、登录检查和字段说明见 [示例 README](https://github.com/LeoAndJellyfish/LandBar/blob/main/samples/codex-balance/README.md)。额度来自安装者自己的 Codex CLI；发布文件包含通用程序与清单。额度快照保存在插件进程内存中，退出后清除。
 
 插件停止或撤回视图后，对应页面恢复内置显示，独立标签消失。插件管理的“停用插件界面”可统一隐藏声明式视图；插件程序和原有卡片继续运行。托盘菜单始终提供“恢复内置界面”和内置插件管理入口，便于撤销控制中心、设置或插件管理页面的替换。
 
@@ -78,7 +81,7 @@ PowerShell 示例中的 `-ExecutionPolicy Bypass` 作用于该子进程。开发
 启动后，宿主首先发送：
 
 ```json
-{"type":"hello","protocolVersion":1,"features":["cards","views","contexts","tabs","sprites"]}
+{"type":"hello","protocolVersion":1,"features":["cards","views","contexts","tabs","sprites","widgetPlacement"]}
 ```
 
 插件须在 5 秒内回复相同的协议版本，之后再提交卡片或视图：
@@ -87,7 +90,7 @@ PowerShell 示例中的 `-ExecutionPolicy Bypass` 作用于该子进程。开发
 {"type":"hello","protocolVersion":1}
 ```
 
-宿主同时设置环境变量 `LANDBAR_PROTOCOL_VERSION=1`。插件运行期间应持续读取标准输入，及时处理操作和退出请求。宿主 `features` 列出可用扩展；使用声明式界面的插件可先检查 `views` 和 `tabs`。较早宿主省略该字段时，插件可回退至卡片接口。
+宿主同时设置环境变量 `LANDBAR_PROTOCOL_VERSION=1`。插件运行期间应持续读取标准输入，及时处理操作和退出请求。宿主 `features` 列出可用扩展；使用声明式界面的插件可先检查 `views` 和 `tabs`，侧边位置声明对应 `widgetPlacement`。较早宿主省略该字段时，插件可回退至卡片接口。
 
 ## 声明式视图与独立标签
 
@@ -118,8 +121,8 @@ PowerShell 示例中的 `-ExecutionPolicy Bypass` 作用于该子进程。开发
 | `slot` | 位置与启用方式 |
 | --- | --- |
 | `activity.tab` | 独立活动标签；每个视图各有一个标签，启用插件界面后自动出现 |
-| `idle.left` | 收起态左侧；在管理页选择“使用” |
-| `idle.right` | 收起态右侧；在管理页选择“使用” |
+| `idle.widget` | 收起态侧边组件；必须声明 `placement`，用户在管理页选择允许的侧边 |
+| `idle.left`、`idle.right` | 旧侧边名称；仍必须声明 `placement`，且默认侧与插槽名称一致 |
 | `idle.content` | 收起态主体，替换默认主体内容；在管理页选择“使用” |
 | `media.page` | 媒体页面替换；在管理页选择“使用” |
 | `notifications.page` | 通知页面替换；在管理页选择“使用” |
@@ -132,7 +135,52 @@ PowerShell 示例中的 `-ExecutionPolicy Bypass` 作用于该子进程。开发
 
 收起态插槽也适用于媒体播放时的紧凑形态。左右组件位于默认主体两侧；`idle.content` 可替换主体。用户点击收起态组件，可进入同插件的活动标签。
 
-相同 ID 的 `view` 完整替换原视图；节点和标题相同时，宿主保留已有呈现。视图更新本身不触发自动弹出。每插件最多保留 12 个视图，宿主总计最多 48 个。视图无 TTL，持续存在至主动撤回或该次运行结束：
+### 侧边位置与宿主布局
+
+侧边组件必须在每次 `view` 消息中提供 `placement`。开发者需确定默认侧及支持的侧边，宿主据此提供位置选择：
+
+```json
+{
+  "type": "view",
+  "id": "status",
+  "slot": "idle.widget",
+  "placement": {
+    "defaultSide": "left",
+    "allowedSides": ["left", "right"]
+  },
+  "root": {
+    "type": "ring", "width": 28, "height": 28,
+    "value": 0.75, "text": "75", "fontSize": 12
+  }
+}
+```
+
+| 字段 | 要求 |
+| --- | --- |
+| `placement.defaultSide` | 必填，`left` 或 `right`，必须包含在 `allowedSides` 中 |
+| `placement.allowedSides` | 必填，包含 1–2 项 `left`、`right`，禁止重复 |
+
+支持左右切换时填写两侧；固定左侧使用 `{"defaultSide":"left","allowedSides":["left"]}`，固定右侧使用 `{"defaultSide":"right","allowedSides":["right"]}`。固定组件的另一侧不提供选择。`placement` 对象拒绝重复或未知字段，页面和 `idle.content` 禁止提供该字段。
+
+旧侧边视图应迁移至 `idle.widget` 并补齐 `placement`。继续使用 `idle.left` 或 `idle.right` 时，`defaultSide` 须分别为 `left`、`right`；缺少声明的侧边视图会触发协议错误。卡片、独立标签和其他页面的消息格式保持原有约定。
+
+每侧同时选择一个组件。同一组件更换侧边时，宿主撤销旧位置的绑定，避免左右重复显示；目标位置已有组件时，宿主在双方位置约束允许的情况下交换位置，否则替换目标侧组件。点击已选中的侧别可移除该组件。选择保存在本机设置中，视图更新不会重置用户选择，插件停用时对应组件撤回。`defaultSide` 用于恢复重复绑定等异常状态；首次显示仍需用户在管理页选择位置。
+
+宿主按两侧组件的实际尺寸分配空间，维持主体的水平居中。左右组件尺寸不等或只启用一侧时，另一侧保留相应空间。组件同时存在于时钟和媒体紧凑形态中；可用宽度不足时，宿主先简化内置媒体内容，再按空间隐藏侧边组件，避免组件重叠或局部裁断。
+
+### 旧版侧边插件迁移
+
+v0.6.0 要求侧边视图显式声明位置。旧消息缺少 `placement` 时，宿主报告协议错误并撤回该插件的视图。
+
+自行开发的组件应在每次 `view` 消息中增加上述声明，建议使用 `idle.widget`。保持插件 ID 和视图 ID，原有有效侧边绑定即可继续使用。
+
+已安装的示例源码位于用户插件目录，LandBar 更新保留该目录。更新像素伙伴等示例时：
+
+1. 在插件管理中停用示例；自定义过源码时先保留副本。
+2. 从新版 `app/PluginExamples/<示例名>` 复制相应源码与清单至 `%LOCALAPPDATA%\LandBar\Plugins\<示例名>`。
+3. 刷新插件列表并重新启用，在管理页选择允许的左侧或右侧。
+
+相同 ID 的 `view` 完整替换原视图；节点、标题和位置声明相同时，宿主保留已有呈现。视图更新本身不触发自动弹出。每插件最多保留 12 个视图，宿主总计最多 48 个。视图无 TTL，持续存在至主动撤回或该次运行结束：
 
 ```json
 {"type":"removeView","id":"dashboard"}
@@ -170,7 +218,7 @@ PowerShell 示例中的 `-ExecutionPolicy Bypass` 作用于该子进程。开发
 | `actionId` | 仅 `button` 使用，沿用视图 ID 格式 | 无 |
 | `children` | 仅 `row`、`column` 使用 | 空数组 |
 
-收起态根节点另有显示限额：`idle.left`、`idle.right` 最大 **64 × 36 DIP**，`idle.content` 最大 **400 × 36 DIP**。省略尺寸时由宿主安排可用空间，显式尺寸超过限额会被拒绝。
+收起态根节点另有显示限额：`idle.widget`、`idle.left`、`idle.right` 最大 **64 × 36 DIP**，`idle.content` 最大 **400 × 36 DIP**。省略尺寸时由宿主安排可用空间，显式尺寸超过限额会被拒绝。建议圆环与像素动画明确指定尺寸，并分别检查左右侧、单组件、双组件及媒体播放时的显示。
 
 ### 像素动画
 
@@ -180,7 +228,8 @@ PowerShell 示例中的 `-ExecutionPolicy Bypass` 作用于该子进程。开发
 {
   "type": "view",
   "id": "pixels",
-  "slot": "idle.left",
+  "slot": "idle.widget",
+  "placement": {"defaultSide":"left","allowedSides":["left","right"]},
   "root": {
     "type": "sprite",
     "width": 28,

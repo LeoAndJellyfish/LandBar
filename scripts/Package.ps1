@@ -25,12 +25,20 @@ New-Item -ItemType Directory -Force $payloadPath, $releasePath | Out-Null
 # No previously running dist directory, diagnostics, settings, screenshots of user apps or old evidence is copied.
 $appSource = Join-Path $distributionPath 'app'
 $appDestination = Join-Path $payloadPath 'app'
+$approvedExampleFiles = @(
+    'PluginExamples\focus-timer\plugin.json', 'PluginExamples\focus-timer\plugin.ps1', 'PluginExamples\focus-timer\README.md',
+    'PluginExamples\pixel-pet\plugin.json', 'PluginExamples\pixel-pet\plugin.ps1', 'PluginExamples\pixel-pet\README.md',
+    'PluginExamples\codex-balance\plugin.json', 'PluginExamples\codex-balance\plugin.py', 'PluginExamples\codex-balance\README.md'
+)
 foreach ($file in Get-ChildItem -LiteralPath $appSource -Recurse -File) {
     $relative = $file.FullName.Substring($appSource.Length + 1)
-    $allowed = $file.Extension -in @('.dll', '.exe') -or
-        $relative -in @('LandBar.deps.json', 'LandBar.runtimeconfig.json', 'LICENSE.txt', 'ThirdPartyNotices.txt') -or
-        ($relative -like 'Assets\*' -and $file.Extension -in @('.png', '.txt', '.md', '.ttf', '.ico')) -or
-        (($relative -like 'PluginExamples\focus-timer\*' -or $relative -like 'PluginExamples\pixel-pet\*') -and $file.Name -in @('plugin.json', 'plugin.ps1', 'README.md'))
+    $allowed = if ($relative.StartsWith('PluginExamples\', [StringComparison]::OrdinalIgnoreCase)) {
+        $relative -cin $approvedExampleFiles
+    } else {
+        $file.Extension -in @('.dll', '.exe') -or
+            $relative -in @('LandBar.deps.json', 'LandBar.runtimeconfig.json', 'LICENSE.txt', 'ThirdPartyNotices.txt') -or
+            ($relative -like 'Assets\*' -and $file.Extension -in @('.png', '.txt', '.md', '.ttf', '.ico'))
+    }
     if (-not $allowed) {
         if ($file.Extension -eq '.pdb') { continue }
         throw "Unexpected publish output requires a packaging review: $relative"
@@ -101,8 +109,8 @@ if ($manifest.Package.Identity.Version -ne "$Version.0") { throw 'Identity versi
 foreach ($required in @('app/LandBar.exe', 'app/LandBar.dll', 'app/LandBar.Plugins.dll', 'app/coreclr.dll', 'app/Assets/Fonts/OFL.txt', 'app/PluginExamples/focus-timer/plugin.json', 'app/PluginExamples/focus-timer/plugin.ps1', 'LandBar.identity.msix', 'identity/AppxManifest.xml')) {
     if (-not (Test-Path -LiteralPath (Join-Path $payloadPath $required))) { throw "Release file missing: $required" }
 }
-foreach ($required in @('plugin.json', 'plugin.ps1', 'README.md')) {
-    if (-not (Test-Path -LiteralPath (Join-Path $payloadPath "app/PluginExamples/pixel-pet/$required"))) { throw "Pixel example is missing $required." }
+foreach ($required in $approvedExampleFiles) {
+    if (-not (Test-Path -LiteralPath (Join-Path $appDestination $required))) { throw "Public example is missing $required." }
 }
 
 # Stable ordering and timestamps make the archive independent of file-copy times.

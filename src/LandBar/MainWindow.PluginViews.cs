@@ -4,6 +4,9 @@ using System.Linq;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Media;
+using LandBar.Core;
 using LandBar.Plugins;
 using LandBar.Presentation;
 
@@ -15,6 +18,8 @@ public partial class MainWindow
     private string _pluginTabsKey = "", _pluginChoicesKey = "";
     private bool _forceBuiltinPluginManagement;
     private readonly Dictionary<string, string> _pluginContextKeys = new(StringComparer.Ordinal);
+    private readonly PluginViewPresenter _measureLeft = new(), _measureRight = new(), _measureCenter = new();
+    private CompactWidgetLayout _compactLayout = CompactWidgetLayout.Calculate(680, 112, 0, 0);
     private IReadOnlyList<PluginView> CurrentPluginViews => _exampleMode || !_settings.EnablePluginViews
         ? Array.Empty<PluginView>() : _plugins?.Views ?? Array.Empty<PluginView>();
     private sealed record PluginTab(string Key, string Title, string PluginId, PluginView? View);
@@ -29,8 +34,19 @@ public partial class MainWindow
 
     private PluginView? SelectedPluginView(string slot)
     {
+        return BoundPluginView(slot, CurrentPluginViews);
+    }
+
+    private PluginView? BoundPluginView(string slot, IReadOnlyList<PluginView> views)
+    {
         if (_settings.PluginViewBindings?.TryGetValue(slot, out var key) != true) return null;
-        return CurrentPluginViews.FirstOrDefault(view => view.Slot == slot && view.StableKey == key);
+        var view = views.FirstOrDefault(view => view.StableKey == key && PluginViewPlacement.CanUseSlot(view, slot));
+        if (view is null || slot is not ("idle.left" or "idle.right")) return view;
+        string other = slot == "idle.left" ? "idle.right" : "idle.left";
+        // Recover duplicate persisted bindings without rendering the same widget twice.
+        if (_settings.PluginViewBindings.GetValueOrDefault(other) == key && PluginViewPlacement.CanUseSlot(view, other) &&
+            PluginViewPlacement.DefaultSide(view) != slot[5..]) return null;
+        return view;
     }
 
     private PluginView? PagePluginView()
@@ -75,21 +91,32 @@ public partial class MainWindow
         RecordInteraction(); Render(); e.Handled = true;
     }
 
-    private double CompactPluginWidth(double builtinWidth)
+    private CompactWidgetLayout CalculateCompactPluginLayout(double builtinWidth, double availableWidth, int mediaCount)
     {
         var content = SelectedPluginView("idle.content");
-        double main = content is null ? builtinWidth : (content.Root.Width ?? 112) + 24;
         var left = SelectedPluginView("idle.left"); var right = SelectedPluginView("idle.right");
-        return Math.Min(680, main + (left is null ? 0 : (left.Root.Width ?? 28) + 8) +
-            (right is null ? 0 : (right.Root.Width ?? 28) + 8));
+        return CompactWidgetLayout.Calculate(Math.Max(80, availableWidth), builtinWidth,
+            MeasureCompactView(_measureLeft, left, 64), MeasureCompactView(_measureRight, right, 64),
+            content is null ? null : MeasureCompactView(_measureCenter, content, 400), mediaCount);
+    }
+
+    private double MeasureCompactView(PluginViewPresenter presenter, PluginView? view, double maximumWidth)
+    {
+        presenter.SetValue(TextElement.FontFamilyProperty, FontFamily);
+        VisualTreeHelper.SetRootDpi(presenter, VisualTreeHelper.GetDpi(this));
+        presenter.Present(view, maximumWidth, 36);
+        if (view is null) return 0;
+        presenter.Measure(new Size(maximumWidth, 36));
+        return Math.Clamp(Math.Ceiling(presenter.DesiredSize.Width), 1, maximumWidth);
     }
 
     private void PresentPluginViews(bool compact, bool activity, PluginView? page, double width, double height)
     {
-        PresentSlot(PluginIdleLeft, compact ? SelectedPluginView("idle.left") : null, 64, 36);
-        PresentSlot(PluginIdleRight, compact ? SelectedPluginView("idle.right") : null, 64, 36);
+        CompactLeftColumn.Width = CompactRightColumn.Width = new GridLength(compact ? _compactLayout.SideWidth : 0);
+        PresentSlot(PluginIdleLeft, compact && _compactLayout.ShowLeft ? SelectedPluginView("idle.left") : null, 64, 36);
+        PresentSlot(PluginIdleRight, compact && _compactLayout.ShowRight ? SelectedPluginView("idle.right") : null, 64, 36);
         var idleContent = compact ? SelectedPluginView("idle.content") : null;
-        PresentSlot(PluginIdleContent, idleContent, Math.Max(1, width - 24), 36);
+        PresentSlot(PluginIdleContent, idleContent, Math.Max(1, _compactLayout.CenterWidth), 36);
         SetVisible(BuiltinCompactView, idleContent is null);
         bool customActivity = activity && _view == IslandView.Activity && page is not null;
         SetVisible(ActivityOverrideScroll, customActivity);
@@ -146,7 +173,7 @@ public partial class MainWindow
 
     private static string SlotTitle(string slot) => slot switch
     {
-        "idle.left" => "收起态 · 左侧", "idle.right" => "收起态 · 右侧", "idle.content" => "收起态 · 主体",
+        "idle.widget" or "idle.left" or "idle.right" => "收起态组件", "idle.content" => "收起态 · 主体",
         "media.page" => "媒体页面", "notifications.page" => "通知页面", "plugins.page" => "卡片页面",
         "activity.tab" => "独立标签页", "controlCenter.page" => "控制中心", "settings.page" => "设置页面",
         "pluginManagement.page" => "插件管理", _ => slot
@@ -157,16 +184,73 @@ public partial class MainWindow
         var views = _plugins?.Views ?? Array.Empty<PluginView>();
         SetVisible(PluginViewsSection, views.Count > 0);
         PluginViewsToggle.Content = _settings.EnablePluginViews ? "停用插件界面" : "启用插件界面";
-        string key = _settings.EnablePluginViews + ":" + string.Join("|", views.Select(view => view.StableKey + ":" + view.Slot + ":" + view.Title)) +
+        string key = _settings.EnablePluginViews + ":" + string.Join("|", views.Select(view => view.StableKey + ":" + view.Slot + ":" + view.Title +
+            ":" + view.Placement?.DefaultSide + ":" + string.Join(",", view.Placement?.AllowedSides ?? []))) +
             ":" + string.Join("|", (_settings.PluginViewBindings ?? []).OrderBy(pair => pair.Key).Select(pair => pair.Key + pair.Value));
         if (key == _pluginChoicesKey) return;
         _pluginChoicesKey = key;
-        PluginViewChoices.ItemsSource = views.Where(view => view.Slot != "activity.tab").Select(view => new
+        PluginViewChoices.ItemsSource = views.Where(view => view.Slot != "activity.tab").Select(view =>
         {
-            Key = view.StableKey, Title = SlotTitle(view.Slot),
-            Source = _plugins?.Plugins.FirstOrDefault(plugin => plugin.Id == view.PluginId)?.Name ?? view.PluginId,
-            ToggleText = SelectedPluginView(view.Slot)?.StableKey == view.StableKey ? "还原" : "使用"
+            bool widget = PluginViewPlacement.IsSideWidget(view);
+            bool left = BoundPluginView("idle.left", views)?.StableKey == view.StableKey;
+            bool right = BoundPluginView("idle.right", views)?.StableKey == view.StableKey;
+            string name = _plugins?.Plugins.FirstOrDefault(plugin => plugin.Id == view.PluginId)?.Name ?? view.PluginId;
+            string hint = view.Placement?.AllowedSides.Count == 1
+                ? "固定" + (view.Placement.DefaultSide == "left" ? "左侧" : "右侧") : "左右可选";
+            return new
+            {
+                Key = view.StableKey, Title = widget ? view.Title ??
+                    (views.Count(other => other.PluginId == view.PluginId && PluginViewPlacement.IsSideWidget(other)) > 1
+                        ? name + " · " + view.Id : name) : view.Title ?? SlotTitle(view.Slot),
+                Source = widget ? (view.Title is null ? "收起态组件" : name) + " · " + hint : name,
+                PositionHint = widget ? hint : "",
+                LeftVisibility = PluginViewPlacement.SupportsSide(view, "left") ? Visibility.Visible : Visibility.Collapsed,
+                RightVisibility = PluginViewPlacement.SupportsSide(view, "right") ? Visibility.Visible : Visibility.Collapsed,
+                LeftTag = view.StableKey + "|left", RightTag = view.StableKey + "|right",
+                LeftBackground = Brush(left && _settings.EnablePluginViews ? "#31463B" : "#24242B"),
+                RightBackground = Brush(right && _settings.EnablePluginViews ? "#31463B" : "#24242B"),
+                LeftForeground = Brush(left && _settings.EnablePluginViews ? "#D4EFDE" : "#CCCCD6"),
+                RightForeground = Brush(right && _settings.EnablePluginViews ? "#D4EFDE" : "#CCCCD6"),
+                UseVisibility = widget ? Visibility.Collapsed : Visibility.Visible,
+                ToggleText = BoundPluginView(view.Slot, views)?.StableKey == view.StableKey ? "还原" : "使用"
+            };
         }).ToArray();
+    }
+
+    /// <summary>Moves one widget atomically and preserves the displaced widget when it can swap sides.</summary>
+    private bool TryAssignPluginSide(string key, string side)
+    {
+        var views = _plugins?.Views ?? Array.Empty<PluginView>();
+        var view = views.FirstOrDefault(view => view.StableKey == key);
+        if (view is null || !PluginViewPlacement.SupportsSide(view, side)) return false;
+        string target = "idle." + side, other = side == "left" ? "idle.right" : "idle.left";
+        string otherSide = side == "left" ? "right" : "left";
+        var moving = BoundPluginView(other, views)?.StableKey == key;
+        var displaced = BoundPluginView(target, views);
+        _settings.PluginViewBindings ??= new(StringComparer.Ordinal);
+        if (_settings.PluginViewBindings.GetValueOrDefault(other) == key) _settings.PluginViewBindings.Remove(other);
+        if (moving && displaced is not null && displaced.StableKey != key && PluginViewPlacement.SupportsSide(displaced, otherSide))
+            _settings.PluginViewBindings[other] = displaced.StableKey;
+        _settings.PluginViewBindings[target] = key;
+        return true;
+    }
+
+    private void SelectPluginSide_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (_demo || (sender as FrameworkElement)?.Tag is not string tag) return;
+        int separator = tag.LastIndexOf('|');
+        if (separator < 0) return;
+        string key = tag[..separator], side = tag[(separator + 1)..], slot = "idle." + side;
+        if (_settings.EnablePluginViews && BoundPluginView(slot, _plugins?.Views ?? Array.Empty<PluginView>())?.StableKey == key)
+        {
+            // Clicking the highlighted side withdraws this widget from both persisted side entries.
+            foreach (string entry in new[] { "idle.left", "idle.right" })
+                if (_settings.PluginViewBindings.GetValueOrDefault(entry) == key) _settings.PluginViewBindings.Remove(entry);
+        }
+        else if (!TryAssignPluginSide(key, side)) return;
+        _settings.EnablePluginViews = true;
+        _settings.Save(); RecordInteraction(); Render();
     }
 
     private void SelectPluginView_Click(object sender, RoutedEventArgs e)
@@ -223,6 +307,7 @@ public partial class MainWindow
     private void DisposePluginViews()
     {
         foreach (var presenter in new[] { PluginIdleLeft, PluginIdleRight, PluginIdleContent, ActivityOverrideContent, PageOverrideContent }) presenter.Dispose();
+        _measureLeft.Dispose(); _measureRight.Dispose(); _measureCenter.Dispose();
     }
     private static string ShortText(string value, int limit) => value[..Math.Min(value.Length, limit)];
 }

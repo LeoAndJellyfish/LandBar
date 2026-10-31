@@ -12,7 +12,7 @@
     <AssemblyTitle>LandBar</AssemblyTitle>
     <Product>LandBar</Product>
     <ApplicationIcon>Assets/Brand/LandBar.ico</ApplicationIcon>
-    <Version>0.5.1</Version>
+    <Version>0.6.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../LandBar.Core/LandBar.Core.csproj" />
@@ -21,7 +21,8 @@
     <Resource Include="Assets/Brand/LandBar.ico" />
     <None Update="Assets/Fonts/OFL.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Assets/Fonts/README.md" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../samples/focus-timer/*" Link="PluginExamples/focus-timer/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../samples/pixel-pet/*" Link="PluginExamples/pixel-pet/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../samples/focus-timer/plugin.json;../../samples/focus-timer/plugin.ps1;../../samples/focus-timer/README.md" Link="PluginExamples/focus-timer/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../samples/pixel-pet/plugin.json;../../samples/pixel-pet/plugin.ps1;../../samples/pixel-pet/README.md" Link="PluginExamples/pixel-pet/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../samples/codex-balance/plugin.json;../../samples/codex-balance/plugin.py;../../samples/codex-balance/README.md" Link="PluginExamples/codex-balance/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

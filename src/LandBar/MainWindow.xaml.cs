@@ -309,7 +309,9 @@ public partial class MainWindow : Window
                 cards.AddRange(history.Skip(_page * 2).Take(2).Select(item => FromEvent(item, sessions)));
             }
         }
-        double compactWidth = CompactPluginWidth(sessions.Count > 1 ? 208 : sessions.Count > 0 ? 180 : 112);
+        var compactLayout = compact ? CalculateCompactPluginLayout(sessions.Count > 1 ? 208 : sessions.Count > 0 ? 180 : 112,
+            Math.Min(680, availableWidth), sessions.Count) : _compactLayout;
+        double compactWidth = compactLayout.Width;
         double width = Math.Min(availableWidth, compact ? compactWidth : _view == IslandView.ControlCenter ? 356 :
             _view is IslandView.Settings or IslandView.PluginSettings ? 400 : cards.Count > 1 ? 680 : 400);
         double height = compact ? 44 : _view == IslandView.ControlCenter ? 280 :
@@ -370,6 +372,7 @@ public partial class MainWindow : Window
                 _pagerKey = pagerKey;
                 PageDots.ItemsSource = Enumerable.Range(0, pageCount).Select(i => Brush(i == page ? "#D5D5DC" : "#41414B")).ToArray();
             }
+            _compactLayout = compactLayout;
             RenderCompact(sessions);
             PresentPluginViews(compact, activity, pageOverride, width, height);
             var scale = VisualTreeHelper.GetDpi(this);
@@ -395,12 +398,14 @@ public partial class MainWindow : Window
     {
         var primary = sessions.FirstOrDefault();
         bool playing = sessions.Any(s => s.IsPlaying);
-        SetVisible(CompactCovers, primary is not null);
-        SetVisible(SecondCover, sessions.Count > 1);
-        SetVisible(AudioBars, sessions.Count > 0);
-        Grid.SetColumn(ClockLabel, primary is null ? 0 : 2);
-        Grid.SetColumnSpan(ClockLabel, primary is null ? 3 : 1);
-        ClockLabel.FontSize = primary is null ? 16 : 14;
+        bool cover = primary is not null && _compactLayout.MediaDetail != CompactMediaDetail.Clock;
+        SetVisible(CompactCovers, cover);
+        CompactCovers.Width = _compactLayout.MediaDetail == CompactMediaDetail.Full && sessions.Count > 1 ? 48 : 28;
+        SetVisible(SecondCover, sessions.Count > 1 && _compactLayout.MediaDetail == CompactMediaDetail.Full);
+        SetVisible(AudioBars, sessions.Count > 0 && _compactLayout.MediaDetail == CompactMediaDetail.Full);
+        Grid.SetColumn(ClockLabel, cover ? 2 : 0);
+        Grid.SetColumnSpan(ClockLabel, cover ? 1 : 3);
+        ClockLabel.FontSize = cover ? 14 : 16;
         if (ClockLabel.Text.Length == 0) ClockLabel.Text = DateTime.Now.ToString("HH:mm");
         AudioBars.Opacity = _settings.Quiet ? 0.3 : playing ? 1 : 0.35;
         CompactGlyph.Text = primary is null ? "" : "\uE8D6";
@@ -414,7 +419,8 @@ public partial class MainWindow : Window
             var accent = FrozenBrush(GetPalette(image).Accent);
             AudioBar1.Background = AudioBar2.Background = AudioBar3.Background = accent;
         }
-        bool animate = playing && CompactView.Visibility == Visibility.Visible && SystemParameters.ClientAreaAnimation && !_settings.Quiet;
+        bool animate = playing && AudioBars.Visibility == Visibility.Visible && CompactView.Visibility == Visibility.Visible &&
+            SystemParameters.ClientAreaAnimation && !_settings.Quiet;
         if (_audioAnimating != animate)
         {
             _audioAnimating = animate;

@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Windows;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
@@ -76,12 +79,12 @@ public sealed class PluginViewPresenter : Border, IDisposable
                 element = button;
                 break;
             case "ring":
-                var ring = new Grid { Width = node.Width ?? 32, Height = node.Height ?? node.Width ?? 32 };
+                var ring = new Grid { Width = node.Width ?? 32, Height = Math.Min(node.Height ?? node.Width ?? 32, availableHeight) };
                 ring.Children.Add(new PluginRing { Value = node.Value ?? 0, Thickness = node.Thickness,
                     Foreground = ColorBrush(node.Color, "#BEDDC9"), Track = ColorBrush(node.TrackColor, "#292D30") });
-                ring.Children.Add(new TextBlock { Text = node.Text, FontSize = node.FontSize,
-                    Foreground = ColorBrush(node.Color, "#BEDDC9"), HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center });
+                ring.Children.Add(new PluginRingLabel { Text = node.Text, FontSize = node.FontSize,
+                    FontWeight = node.Weight == "semibold" ? FontWeights.SemiBold : FontWeights.Normal,
+                    Foreground = ColorBrush(node.Color, "#BEDDC9") });
                 element = ring;
                 break;
             case "sprite":
@@ -116,6 +119,44 @@ public sealed class PluginViewPresenter : Border, IDisposable
     }
     private void DisposeSprites() { foreach (var sprite in _sprites) sprite.Dispose(); _sprites.Clear(); }
     public void Dispose() { DisposeSprites(); _view = null; Child = null; }
+}
+
+/// <summary>Centers the visible glyphs, independently of the font's line-box leading.</summary>
+public sealed class PluginRingLabel : FrameworkElement
+{
+    public string Text { get; init; } = "";
+    public double FontSize { get; init; } = 12;
+    public FontWeight FontWeight { get; init; } = FontWeights.Normal;
+    public Brush Foreground { get; init; } = Brushes.White;
+
+    protected override void OnRender(DrawingContext context)
+    {
+        if (string.IsNullOrEmpty(Text)) return;
+        var typeface = new Typeface(TextElement.GetFontFamily(this), TextElement.GetFontStyle(this),
+            FontWeight, TextElement.GetFontStretch(this));
+        var text = new FormattedText(Text, CultureInfo.CurrentUICulture, FlowDirection, typeface,
+            FontSize, Foreground, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+        var ink = text.BuildGeometry(new Point()).Bounds;
+        if (ink.IsEmpty) return;
+        var origin = new Point((ActualWidth - ink.Width) / 2 - ink.X,
+            (ActualHeight - ink.Height) / 2 - ink.Y);
+        context.DrawText(text, origin);
+    }
+
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        InvalidateVisual();
+    }
+
+    protected override AutomationPeer OnCreateAutomationPeer() => new RingLabelAutomationPeer(this);
+
+    private sealed class RingLabelAutomationPeer(PluginRingLabel owner) : FrameworkElementAutomationPeer(owner)
+    {
+        protected override string GetClassNameCore() => nameof(PluginRingLabel);
+        protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Text;
+        protected override string GetNameCore() => ((PluginRingLabel)Owner).Text;
+    }
 }
 
 public sealed class PluginRing : FrameworkElement

@@ -201,16 +201,37 @@ public partial class MainWindow
         e.Handled = true;
         if (_demo) { ShowPluginHint("请结束预览后安装示例。"); return; }
         string exampleId = (sender as FrameworkElement)?.Tag as string ?? "focus-timer";
-        if (exampleId is not ("focus-timer" or "pixel-pet")) return;
+        string[] files = exampleId switch
+        {
+            "focus-timer" or "pixel-pet" => ["plugin.json", "plugin.ps1", "README.md"],
+            "codex-balance" => ["plugin.json", "plugin.py", "README.md"],
+            _ => []
+        };
+        if (files.Length == 0) return;
         try
         {
             string source = Path.Combine(AppContext.BaseDirectory, "PluginExamples", exampleId);
             string destination = Path.Combine(PluginsDirectory, exampleId);
-            if (Directory.Exists(destination)) { ShowPluginHint("示例目录已存在，可在下方启用。"); return; }
-            if (!Directory.Exists(source)) { ShowPluginHint("示例文件缺失，请重新解压完整发布包。"); return; }
-            Directory.CreateDirectory(destination);
-            foreach (string name in new[] { "plugin.json", "plugin.ps1", "README.md" })
-                File.Copy(Path.Combine(source, name), Path.Combine(destination, name));
+            if (Directory.Exists(destination))
+            { ShowPluginHint("已有同名插件，现有文件已保留。更新示例请先备份并移走原目录。"); return; }
+            if (files.Any(name => !File.Exists(Path.Combine(source, name))))
+            { ShowPluginHint("示例文件缺失，请重新解压完整发布包。"); return; }
+            Directory.CreateDirectory(PluginsDirectory);
+            string staging = Path.Combine(PluginsDirectory, ".install-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(staging);
+            try
+            {
+                foreach (string name in files) File.Copy(Path.Combine(source, name), Path.Combine(staging, name));
+                Directory.Move(staging, destination);
+            }
+            finally
+            {
+                if (Directory.Exists(staging))
+                {
+                    foreach (string name in files) File.Delete(Path.Combine(staging, name));
+                    Directory.Delete(staging);
+                }
+            }
             _plugins?.Discover();
             ShowPluginHint("示例已安装。点击“启用”开始运行。"); Render();
         }

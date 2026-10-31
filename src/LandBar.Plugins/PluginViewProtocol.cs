@@ -24,6 +24,7 @@ internal static partial class PluginProtocol
         string id = CardId(root);
         string slot = Text(root, "slot", 32);
         if (!PluginSlots.All.Contains(slot)) throw new InvalidDataException("插件页面插槽不受支持。");
+        var placement = ReadPlacement(root, slot);
         string? title = OptionalText(root, "title", 24);
         if (slot == "activity.tab" && title is null)
             throw new InvalidDataException("activity.tab 页面必须提供 title。");
@@ -43,7 +44,39 @@ internal static partial class PluginProtocol
             if (tree.Width > maximumWidth || tree.Height > 36)
                 throw new InvalidDataException($"{slot} 根节点最大宽度为 {maximumWidth}，最大高度为 36。");
         }
-        return new(pluginId, id, slot, tree, now, title);
+        return new(pluginId, id, slot, tree, now, title, placement);
+    }
+
+    private static PluginPlacement? ReadPlacement(JsonElement root, string slot)
+    {
+        bool sideWidget = slot is "idle.widget" or "idle.left" or "idle.right";
+        if (!root.TryGetProperty("placement", out var json))
+        {
+            if (sideWidget)
+                throw new InvalidDataException("侧边插件必须声明 placement.defaultSide 与 placement.allowedSides；固定位置也须显式声明。");
+            return null;
+        }
+        if (!sideWidget) throw new InvalidDataException("placement 仅适用于 idle.widget、idle.left 和 idle.right。");
+        if (json.ValueKind != JsonValueKind.Object) throw new InvalidDataException("placement 必须是对象。");
+        var fields = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var field in json.EnumerateObject())
+            if (!fields.Add(field.Name) || field.Name is not ("defaultSide" or "allowedSides"))
+                throw new InvalidDataException("placement 包含重复或不支持的字段。");
+        string defaultSide = Text(json, "defaultSide", 5);
+        if (defaultSide is not ("left" or "right"))
+            throw new InvalidDataException("placement.defaultSide 必须是 left 或 right。");
+        if (!json.TryGetProperty("allowedSides", out var values) || values.ValueKind != JsonValueKind.Array || values.GetArrayLength() is < 1 or > 2)
+            throw new InvalidDataException("placement.allowedSides 必须是包含一至两个位置的数组。");
+        var sides = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var value in values.EnumerateArray())
+        {
+            if (value.ValueKind != JsonValueKind.String || value.GetString() is not { } side || side is not ("left" or "right") || !sides.Add(side))
+                throw new InvalidDataException("placement.allowedSides 仅支持不重复的 left 和 right。");
+        }
+        if (!sides.Contains(defaultSide)) throw new InvalidDataException("placement.defaultSide 必须属于 allowedSides。");
+        if (slot is "idle.left" or "idle.right" && slot != "idle." + defaultSide)
+            throw new InvalidDataException("旧侧边插槽必须与 placement.defaultSide 一致；可移动组件请使用 idle.widget。");
+        return new(defaultSide, Array.AsReadOnly(new[] { "left", "right" }.Where(sides.Contains).ToArray()));
     }
 
     private static PluginNode ReadNode(JsonElement json, int depth, ref int count, HashSet<string> nodeIds)
@@ -160,6 +193,9 @@ internal static partial class PluginProtocol
         left.Value == right.Value && left.TrackColor == right.TrackColor && left.Thickness == right.Thickness &&
         left.ActionId == right.ActionId && SameSprite(left.Sprite, right.Sprite) &&
         left.Children.Count == right.Children.Count && left.Children.Zip(right.Children).All(pair => SameNode(pair.First, pair.Second));
+
+    internal static bool SamePlacement(PluginPlacement? left, PluginPlacement? right) => left is null ? right is null :
+        right is not null && left.DefaultSide == right.DefaultSide && left.AllowedSides.SequenceEqual(right.AllowedSides);
 
     private static bool SameSprite(PluginSprite? left, PluginSprite? right) => left is null ? right is null :
         right is not null && left.PixelWidth == right.PixelWidth && left.PixelHeight == right.PixelHeight &&
