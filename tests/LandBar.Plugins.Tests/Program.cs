@@ -23,7 +23,7 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Malformed card fields and action bounds are rejected", CardValidation),
     ("Message rate limits contain flooding providers", RateLimit),
     ("Per-plugin and aggregate card counts stay bounded", CardLimits),
-    ("Running process count is bounded", ProcessLimit),
+    ("Running process count is bounded without consuming thread-pool workers", ProcessLimit),
     ("Unexpected exit clears cards and permits explicit restart", UnexpectedExit),
     ("Explicit stop kills an uncooperative owned process and clears cards", ForcedStop),
     ("Disposal closes every owned plugin process", Disposal),
@@ -266,9 +266,54 @@ static async Task CardLimits()
 
 static async Task ProcessLimit()
 {
+    // The owner gets its own small thread pool. Idle process pipes must not occupy those workers;
+    // otherwise handshake writes and their deadlines cannot run when eight providers are enabled.
+    var info = new ProcessStartInfo(Environment.ProcessPath!)
+    {
+        UseShellExecute = false, CreateNoWindow = true,
+        RedirectStandardOutput = true, RedirectStandardError = true
+    };
+    if (Path.GetFileNameWithoutExtension(Environment.ProcessPath) == "dotnet")
+        info.ArgumentList.Add(Assembly.GetExecutingAssembly().Location);
+    info.ArgumentList.Add("--fixture"); info.ArgumentList.Add("processlimitowner");
+    using var owner = Process.Start(info)!;
+    Task<string> output = owner.StandardOutput.ReadToEndAsync();
+    Task<string> error = owner.StandardError.ReadToEndAsync();
+    try
+    {
+        await owner.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
+        if (owner.ExitCode != 0)
+            throw new InvalidOperationException("Bounded-thread-pool owner failed: " + await output + await error);
+        True((await output).Contains("PROCESS_LIMIT_OK", StringComparison.Ordinal));
+    }
+    finally
+    {
+        if (!owner.HasExited)
+        {
+            // On Windows, terminating this owner closes the Jobs that own its fixture children.
+            owner.Kill(entireProcessTree: !OperatingSystem.IsWindows());
+            await owner.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(4));
+        }
+    }
+}
+
+static async Task ProcessLimitOwner()
+{
+    ThreadPool.GetMinThreads(out _, out int minimumIo);
+    ThreadPool.GetMaxThreads(out _, out int maximumIo);
+    True(ThreadPool.SetMinThreads(2, minimumIo));
+    True(ThreadPool.SetMaxThreads(4, maximumIo));
     using var data = new TestDirectory(); for (int i = 0; i < 9; i++) data.Add("process" + i, "nocard");
     await using var manager = new PluginManager(data.Root); manager.Discover();
-    for (int i = 0; i < 8; i++) True(await manager.StartAsync("process" + i));
+    for (int i = 0; i < 8; i++)
+    {
+        string id = "process" + i;
+        if (!await manager.StartAsync(id))
+        {
+            var status = manager.Plugins.Single(plugin => plugin.Id == id);
+            throw new InvalidOperationException($"{id} failed to start: {status.State}, {status.Detail}");
+        }
+    }
     True(!await manager.StartAsync("process8"));
     Equal(8, manager.Plugins.Count(plugin => plugin.State == PluginState.Running));
     Equal(PluginState.Faulted, manager.Plugins.Single(plugin => plugin.Id == "process8").State);
@@ -291,7 +336,7 @@ static async Task ForcedStop()
     using var data = new TestDirectory(); string directory = data.Add("stubborn", "stubborn");
     await using var manager = new PluginManager(data.Root); manager.Discover();
     True(await manager.StartAsync("stubborn")); await Until(() => manager.Cards.Count == 1);
-    int pid = int.Parse(File.ReadAllText(Path.Combine(directory, "started.txt")));
+    int pid = await ReadPidAsync(Path.Combine(directory, "started.txt"));
     var stopwatch = Stopwatch.StartNew(); await manager.StopAsync("stubborn");
     True(stopwatch.Elapsed < TimeSpan.FromSeconds(4));
     True(ProcessExited(pid)); Equal(0, manager.Cards.Count);
@@ -299,12 +344,14 @@ static async Task ForcedStop()
 
 static async Task Disposal()
 {
-    using var data = new TestDirectory(); string directory = data.Add("dispose", "stubborn");
+    using var data = new TestDirectory(); string directory = data.Add("dispose", "tree");
     var manager = new PluginManager(data.Root); manager.Discover();
     True(await manager.StartAsync("dispose")); await Until(() => manager.Cards.Count == 1);
-    int pid = int.Parse(File.ReadAllText(Path.Combine(directory, "started.txt")));
-    await manager.DisposeAsync();
+    int pid = await ReadPidAsync(Path.Combine(directory, "started.txt"));
+    int child = await ReadPidAsync(Path.Combine(directory, "child-pid.txt"));
+    await Task.WhenAll(manager.StopAsync("dispose"), manager.DisposeAsync().AsTask());
     True(ProcessExited(pid)); Equal(0, manager.Cards.Count);
+    await Until(() => ProcessExited(child));
     await manager.DisposeAsync();
     try { manager.Discover(); throw new Exception("Expected disposed check"); } catch (ObjectDisposedException) { }
 }
@@ -353,7 +400,7 @@ static async Task ClosedOutput()
     await using var manager = new PluginManager(data.Root); manager.Discover();
     await manager.StartAsync("closed");
     await Until(() => manager.Plugins.Single().State == PluginState.Faulted);
-    int pid = int.Parse(File.ReadAllText(Path.Combine(directory, "started.txt")));
+    int pid = await ReadPidAsync(Path.Combine(directory, "started.txt"));
     await Until(() => ProcessExited(pid));
     Equal(0, manager.Cards.Count);
 }
@@ -366,7 +413,7 @@ static async Task HandshakeTimeout()
     True(!await manager.StartAsync("silent"));
     True(watch.Elapsed < TimeSpan.FromSeconds(8));
     Equal(PluginState.Faulted, manager.Plugins.Single().State);
-    int pid = int.Parse(File.ReadAllText(Path.Combine(directory, "started.txt")));
+    int pid = await ReadPidAsync(Path.Combine(directory, "started.txt"));
     await Until(() => ProcessExited(pid));
 }
 
@@ -376,9 +423,8 @@ static async Task ProcessTree()
     await using var manager = new PluginManager(data.Root); manager.Discover();
     True(await manager.StartAsync("tree"));
     string childFile = Path.Combine(directory, "child-pid.txt");
-    await Until(() => File.Exists(childFile));
-    int child = int.Parse(File.ReadAllText(childFile));
-    int parent = int.Parse(File.ReadAllText(Path.Combine(directory, "started.txt")));
+    int child = await ReadPidAsync(childFile);
+    int parent = await ReadPidAsync(Path.Combine(directory, "started.txt"));
     await manager.StopAsync("tree");
     True(ProcessExited(parent));
     await Until(() => ProcessExited(child));
@@ -403,9 +449,8 @@ static async Task ParentExitTree()
         await using var manager = new PluginManager(data.Root); manager.Discover();
         await manager.StartAsync("tree");
         string childFile = Path.Combine(directory, "child-pid.txt");
-        await Until(() => File.Exists(childFile));
-        int child = int.Parse(File.ReadAllText(childFile));
-        int parent = int.Parse(File.ReadAllText(Path.Combine(directory, "started.txt")));
+        int child = await ReadPidAsync(childFile);
+        int parent = await ReadPidAsync(Path.Combine(directory, "started.txt"));
         await Until(() => ProcessExited(parent));
         await Until(() => manager.Plugins.Single().State is PluginState.Stopped or PluginState.Faulted);
         await Until(() => ProcessExited(child));
@@ -460,6 +505,20 @@ static async Task Until(Func<bool> condition)
         await Task.Delay(15);
     }
 }
+static async Task<int> ReadPidAsync(string path)
+{
+    int pid = 0;
+    await Until(() =>
+    {
+        try
+        {
+            string text = File.ReadAllText(path);
+            return text.EndsWith('\n') && int.TryParse(text, out pid) && pid > 0;
+        }
+        catch (IOException) { return false; }
+    });
+    return pid;
+}
 static bool ProcessExited(int pid)
 {
     try { using var process = Process.GetProcessById(pid); return process.HasExited; }
@@ -475,7 +534,13 @@ static async Task<int> Fixture(string mode)
 {
     Console.InputEncoding = new UTF8Encoding(false); Console.OutputEncoding = new UTF8Encoding(false);
     if (mode == "child") { await Task.Delay(60000); return 0; }
-    File.WriteAllText("started.txt", Environment.ProcessId.ToString());
+    if (mode == "processlimitowner")
+    {
+        await ProcessLimitOwner();
+        Console.WriteLine("PROCESS_LIMIT_OK");
+        return 0;
+    }
+    WritePid("started.txt", Environment.ProcessId);
     if (mode == "earlycard") { await SendCard(); return 0; }
     string? hello = await Console.In.ReadLineAsync();
     if (hello is null) return 2;
@@ -514,7 +579,7 @@ static async Task<int> Fixture(string mode)
         if (Path.GetFileNameWithoutExtension(Environment.ProcessPath) == "dotnet") info.ArgumentList.Add(Assembly.GetExecutingAssembly().Location);
         info.ArgumentList.Add("--fixture"); info.ArgumentList.Add("child");
         using var child = Process.Start(info)!;
-        File.WriteAllText("child-pid.txt", child.Id.ToString());
+        WritePid("child-pid.txt", child.Id);
         if (mode != "tree") { await Task.Delay(120); return mode == "treeexit" ? 0 : 9; }
         await Task.Delay(60000); return 0;
     }
@@ -540,6 +605,12 @@ static async Task<int> Fixture(string mode)
         ttlSeconds = ttl, actions = new[] { new { id = "toggle", label = "暂停" }, new { id = "remove", label = "移除" }, new { id = "duplicate", label = "刷新" } }
     });
     static async Task Send(object value) { await Console.Out.WriteLineAsync(JsonSerializer.Serialize(value)); await Console.Out.FlushAsync(); }
+    static void WritePid(string path, int pid)
+    {
+        string temporary = path + ".tmp";
+        File.WriteAllText(temporary, pid.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n");
+        File.Move(temporary, path, overwrite: true);
+    }
 }
 
 sealed class TestDirectory : IDisposable

@@ -193,7 +193,8 @@ internal static class ViewTests
         await Task.Delay(150); Equal(0, changes);
         Equal(first.UpdatedAt, manager.Views.Single(view => view.Id == "main").UpdatedAt);
         True(await manager.ViewActionAsync("tabs", "main", "rename"));
-        await Until(() => manager.Views.Single(view => view.Id == "main").Title == "页面 · 更新");
+        await Until(() => manager.Views.Single(view => view.Id == "main").Title == "页面 · 更新" &&
+            Volatile.Read(ref changes) > 0);
         True(changes > 0); Equal(first.StableKey, manager.Views.Single(view => view.Id == "main").StableKey);
         Equal("任务页面", manager.Views.Single(view => view.Id == "main").Root.Children[0].Text);
         await manager.StopAsync("tabs"); Equal(0, manager.Views.Count);

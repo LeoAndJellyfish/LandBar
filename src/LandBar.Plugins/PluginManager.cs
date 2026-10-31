@@ -286,8 +286,13 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
 
     private async Task RunAsync(Runtime runtime)
     {
-        Task stderr = DrainErrorAsync(runtime);
-        Task stdout = ReadMessagesAsync(runtime);
+        // Process pipes use synchronous OS handles on Windows. Async-over-sync reads would
+        // occupy two thread-pool workers per idle provider and delay writes and handshake timers.
+        // The eight-provider limit bounds these dedicated readers to sixteen threads.
+        Task stderr = Task.Factory.StartNew(() => DrainError(runtime), CancellationToken.None,
+            TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        Task stdout = Task.Factory.StartNew(() => ReadMessages(runtime), CancellationToken.None,
+            TaskCreationOptions.LongRunning, TaskScheduler.Default);
         try
         {
             await runtime.Process.WaitForExitAsync(runtime.Cancellation.Token).ConfigureAwait(false);
@@ -303,11 +308,14 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
         catch (Exception) { Fault(runtime, "插件进程连接已中断。"); }
         finally
         {
-            // Closing the Windows Job also reclaims descendants after their parent has exited.
-            runtime.Scope?.Dispose();
             runtime.Cancellation.Cancel();
             Kill(runtime);
-            // Readers use cancellation-aware IO and are observed even if a descendant retained a pipe.
+            // Cancellation may have ended the first wait before the OS signaled process exit.
+            // Observe that signal before disposing Process or completing a stop request.
+            try { await runtime.Process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false); }
+            catch (InvalidOperationException) { }
+            catch (TimeoutException) { }
+            // Killing the owned process tree closes inherited pipes and unblocks the dedicated readers.
             try { await Task.WhenAll(stdout, stderr).WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false); } catch { }
             lock (_sync)
             {
@@ -327,20 +335,24 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
         }
     }
 
-    private async Task ReadMessagesAsync(Runtime runtime)
+    private void ReadMessages(Runtime runtime)
     {
-        var buffer = new char[1024];
         var line = new StringBuilder();
         long window = Stopwatch.GetTimestamp();
         int messages = 0;
         try
         {
-            while (true)
+            while (!runtime.Cancellation.IsCancellationRequested)
             {
-                int length = await runtime.Process.StandardOutput.ReadAsync(buffer.AsMemory(), runtime.Cancellation.Token).ConfigureAwait(false);
-                if (length == 0)
+                // Read() consumes StreamReader's internal buffer without waiting to fill a caller
+                // buffer past a complete JSON line while the provider waits for our response.
+                int next = runtime.Process.StandardOutput.Read();
+                if (next < 0)
                 {
-                    if (!runtime.StopRequested && !runtime.Process.HasExited)
+                    // ExitProcess closes stdout shortly before the process handle is signaled.
+                    // A bounded grace distinguishes normal exit from a provider closing stdout
+                    // while continuing to run; this reader owns a dedicated thread.
+                    if (!runtime.StopRequested && !runtime.Process.WaitForExit(200))
                     {
                         Fault(runtime, "插件输出通道已关闭。");
                         runtime.Cancellation.Cancel();
@@ -348,22 +360,19 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
                     }
                     return;
                 }
-                for (int i = 0; i < length; i++)
+                char character = (char)next;
+                if (character == '\n')
                 {
-                    char character = buffer[i];
-                    if (character == '\n')
-                    {
-                        if (Stopwatch.GetElapsedTime(window) >= TimeSpan.FromSeconds(1)) { window = Stopwatch.GetTimestamp(); messages = 0; }
-                        if (++messages > 60) throw new InvalidDataException("插件消息超过每秒 60 条。");
-                        string message = line.ToString().TrimEnd('\r');
-                        line.Clear();
-                        HandleMessage(runtime, message);
-                    }
-                    else
-                    {
-                        if (line.Length >= PluginProtocol.MaximumLineLength) throw new InvalidDataException("插件消息超过 16 KiB。");
-                        line.Append(character);
-                    }
+                    if (Stopwatch.GetElapsedTime(window) >= TimeSpan.FromSeconds(1)) { window = Stopwatch.GetTimestamp(); messages = 0; }
+                    if (++messages > 60) throw new InvalidDataException("插件消息超过每秒 60 条。");
+                    string message = line.ToString().TrimEnd('\r');
+                    line.Clear();
+                    HandleMessage(runtime, message);
+                }
+                else
+                {
+                    if (line.Length >= PluginProtocol.MaximumLineLength) throw new InvalidDataException("插件消息超过 16 KiB。");
+                    line.Append(character);
                 }
             }
         }
@@ -442,10 +451,14 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
         if (changed) Notify();
     }
 
-    private static async Task DrainErrorAsync(Runtime runtime)
+    private static void DrainError(Runtime runtime)
     {
         var buffer = new char[1024];
-        try { while (await runtime.Process.StandardError.ReadAsync(buffer.AsMemory(), runtime.Cancellation.Token).ConfigureAwait(false) > 0) { } }
+        try
+        {
+            while (!runtime.Cancellation.IsCancellationRequested &&
+                   runtime.Process.StandardError.Read(buffer, 0, buffer.Length) > 0) { }
+        }
         catch (Exception) { }
     }
 
@@ -498,6 +511,9 @@ public sealed class PluginManager : IDisposable, IAsyncDisposable
 
     private static void Kill(Runtime runtime)
     {
+        // Closing the owned Windows Job atomically reclaims the entire tree. Enumerating the tree
+        // with Process.Kill can race another cleanup closing that job and produce invalid handles.
+        if (runtime.Scope is { } scope) { scope.Dispose(); return; }
         try { if (!runtime.Process.HasExited) runtime.Process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { } catch (System.ComponentModel.Win32Exception) { }
     }
 
