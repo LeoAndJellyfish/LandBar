@@ -7,6 +7,7 @@ $projects = @(
     'LandBar.Core.Tests',
     'LandBar.Plugins.Tests',
     'LandBar.MediaSelection.Tests',
+    'LandBar.Media.Tests',
     'LandBar.Motion.Tests',
     'LandBar.Spring.Tests',
     'LandBar.Palette.Tests',
@@ -14,7 +15,8 @@ $projects = @(
 )
 foreach ($project in $projects) {
     Write-Host "Running $project"
-    & dotnet run --project (Join-Path $workspacePath "tests/$project") -c Release
+    $testArguments = if ($project -eq 'LandBar.Media.Tests') { @('--', '--cache-only') } else { @() }
+    & dotnet run --project (Join-Path $workspacePath "tests/$project") -c Release @testArguments
     if ($LASTEXITCODE -ne 0) { throw "$project failed with exit code $LASTEXITCODE." }
 }
 & dotnet build (Join-Path $workspacePath 'src/LandBar/LandBar.csproj') -c Release --nologo

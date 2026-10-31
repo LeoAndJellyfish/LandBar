@@ -88,6 +88,8 @@ public sealed class WindowsMediaSource : IDisposable
         await _refreshGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
+            // Enumerate and compare COM identities in the same MTA as provider requests.
+            await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
             token.ThrowIfCancellationRequested();
             var manager = _manager;
             if (manager is null) return;
@@ -98,6 +100,9 @@ public sealed class WindowsMediaSource : IDisposable
             var snapshots = new List<MediaSessionSnapshot>();
             foreach (var session in nativeSessions)
             {
+                // A WinRT completion can inline on a COM STA even with ConfigureAwait(false).
+                // Re-enter MTA before accessing the next provider's native session.
+                await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
                 token.ThrowIfCancellationRequested();
                 SessionHandle? handle = null;
                 try
@@ -127,26 +132,33 @@ public sealed class WindowsMediaSource : IDisposable
                     var playing = playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
                     var controls = playback.Controls;
                     bool trackChanged = handle.ObservedTrack != trackKey;
-                    if (trackChanged)
-                    {
-                        handle.ObservedTrack = trackKey;
-                        handle.HasEmittedPlayingTrack = false;
-                    }
-                    string? artwork = !trackChanged ? handle.LastSnapshot?.ArtworkPath : null;
-                    if (artwork is null && properties.Thumbnail is not null)
+                    string? artwork = null;
+                    if (properties.Thumbnail is not null)
                     {
                         try
                         {
-                            artwork = await WinRtArtworkCache.SaveAsync(properties.Thumbnail,
-                                $"{appId}\n{trackKey}", token).ConfigureAwait(false);
+                            // Thumbnail-only changes are common, including delayed artwork after a
+                            // track switch. Reconcile on every refresh, even when metadata is stable.
+                            artwork = await WinRtArtworkCache.SaveAsync(properties.Thumbnail, token).ConfigureAwait(false);
                         }
                         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-                        catch (Exception exception) { TraceFailure("artwork", exception); }
+                        catch (Exception exception)
+                        {
+                            // Keep a last successful image through a temporary read failure, but
+                            // never carry artwork across tracks or restore an explicitly absent image.
+                            if (!trackChanged) artwork = handle.LastSnapshot?.ArtworkPath;
+                            TraceFailure("artwork", exception);
+                        }
                     }
                     var snapshot = new MediaSessionSnapshot(handle.Id, appId, FriendlyAppName(appId), title,
                         artist, artwork, playing, identity == currentIdentity,
                         controls.IsPlayPauseToggleEnabled || (playing ? controls.IsPauseEnabled : controls.IsPlayEnabled),
                         controls.IsNextEnabled, controls.IsPreviousEnabled);
+                    if (trackChanged)
+                    {
+                        handle.ObservedTrack = trackKey;
+                        handle.HasEmittedPlayingTrack = false;
+                    }
                     handle.LastSnapshot = snapshot;
                     snapshots.Add(snapshot);
                     // A resume updates the live snapshot. A song not previously played still alerts once.
@@ -203,6 +215,8 @@ public sealed class WindowsMediaSource : IDisposable
     {
         try
         {
+            // WPF invokes transport from its STA; use a consistent MTA boundary for native requests.
+            await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
             if (_stop.IsCancellationRequested || _manager is not { } manager) return false;
             GlobalSystemMediaTransportControlsSession? session;
             if (sessionId is null) session = manager.GetCurrentSession();

@@ -105,6 +105,6 @@ dotnet build src/LandBar/LandBar.csproj -c Release
 ./scripts/Test.ps1
 ```
 
-CI 检查核心逻辑、插件协议与真实子进程、媒体选择、动画数学、配色、字体资源及构建。依赖交互桌面的窗口、置顶与系统媒体测试单独运行。打包流程、测试分类和发布约定见 [开发文档](docs/development.md)。
+CI 检查核心逻辑、插件协议与真实子进程、媒体选择、封面缓存、动画数学、配色、字体资源及构建。依赖交互桌面的窗口、置顶与系统媒体测试单独运行。打包流程、测试分类和发布约定见 [开发文档](docs/development.md)。
 
 问题反馈可提交到 [Issues](https://github.com/LeoAndJellyfish/LandBar/issues)，请注明 Windows 版本、LandBar 版本、来源应用及复现步骤。字体与运行时的分发声明见 [第三方声明](THIRD_PARTY_NOTICES.md)。
