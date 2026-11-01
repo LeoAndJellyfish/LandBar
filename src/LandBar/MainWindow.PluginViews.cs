@@ -112,7 +112,8 @@ public partial class MainWindow
 
     private void PresentPluginViews(bool compact, bool activity, PluginView? page, double width, double height)
     {
-        CompactLeftColumn.Width = CompactRightColumn.Width = new GridLength(compact ? _compactLayout.SideWidth : 0);
+        CompactLeftColumn.Width = new GridLength(compact ? _compactLayout.LeftWidth : 0);
+        CompactRightColumn.Width = new GridLength(compact ? _compactLayout.RightWidth : 0);
         PresentSlot(PluginIdleLeft, compact && _compactLayout.ShowLeft ? SelectedPluginView("idle.left") : null, 64, 36);
         PresentSlot(PluginIdleRight, compact && _compactLayout.ShowRight ? SelectedPluginView("idle.right") : null, 64, 36);
         var idleContent = compact ? SelectedPluginView("idle.content") : null;

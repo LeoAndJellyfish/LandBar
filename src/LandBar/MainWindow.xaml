@@ -254,7 +254,7 @@
                 </Border.RenderTransform>
               </Border>
             </StackPanel>
-            <TextBlock x:Name="ClockLabel" Grid.ColumnSpan="3" Foreground="#D2D2DA" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" FontFamily="{StaticResource AppFont}" FontSize="16" Typography.NumeralAlignment="Tabular"/>
+            <p:InkCenteredClock x:Name="ClockLabel" Grid.ColumnSpan="3" Foreground="#D2D2DA" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" FontFamily="{StaticResource AppFont}" FontSize="16" Typography.NumeralAlignment="Tabular"/>
           </Grid>
               <p:PluginViewPresenter x:Name="PluginIdleContent" Grid.Column="1" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" MouseLeftButtonUp="PluginIdle_Click"/>
               <p:PluginViewPresenter x:Name="PluginIdleRight" Grid.Column="2" Margin="8,0,0,0" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Center" MouseLeftButtonUp="PluginIdle_Click"/>

@@ -39,5 +39,8 @@ if ($IncludeDesktop) {
     & dotnet run --project (Join-Path $workspacePath 'tests/LandBar.PluginViews.Smoke') -c Release -- `
         (Join-Path $workspacePath 'artifacts/tests/CodexPublicViews') --codex-only
     if ($LASTEXITCODE -ne 0) { throw "Codex public view checks failed with exit code $LASTEXITCODE." }
+    & dotnet run --project (Join-Path $workspacePath 'tests/LandBar.PluginViews.Smoke') -c Release -- `
+        (Join-Path $workspacePath 'artifacts/tests/ClockRingAlignment') --clock-ring-only
+    if ($LASTEXITCODE -ne 0) { throw "Clock and ring alignment checks failed with exit code $LASTEXITCODE." }
 }
 Write-Host 'LandBar checks passed.'

@@ -28,7 +28,8 @@ var tests = new (string Name, Action Run)[]
     ("Clearing notifications remains available while paused or expiry is disabled", ClearNotificationsPaused),
     ("Plugin updates retain exposure and never reopen collapsed cards", PluginUpdates),
     ("Provider withdrawal removes active and historical cards without clearing other sources", PluginWithdrawal),
-    ("Compact widgets reserve equal side tracks and retain the centered body", CompactLayoutChecks.Balanced),
+    ("Compact widgets consume only their occupied side tracks", CompactLayoutChecks.OccupiedTracks),
+    ("Removing and restoring compact widgets reclaims and restores their exact widths", CompactLayoutChecks.RemovalAndRestoration),
     ("Compact narrow layouts preserve whole widgets and recover media detail", CompactLayoutChecks.Constrained),
     ("Compact layout budgets remain finite and bounded across display widths", CompactLayoutChecks.Budgets)
 };

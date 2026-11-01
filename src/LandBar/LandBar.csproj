@@ -12,7 +12,7 @@
     <AssemblyTitle>LandBar</AssemblyTitle>
     <Product>LandBar</Product>
     <ApplicationIcon>Assets/Brand/LandBar.ico</ApplicationIcon>
-    <Version>0.6.0</Version>
+    <Version>0.6.1</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../LandBar.Core/LandBar.Core.csproj" />

@@ -2,9 +2,9 @@ namespace LandBar.Core;
 
 public enum CompactMediaDetail { Full, Cover, Clock }
 
-/// <summary>A centered compact body with balanced side tracks and whole-widget overflow.</summary>
+/// <summary>Sizes each occupied side independently, preserving whole widgets within the compact budget.</summary>
 public sealed record CompactWidgetLayout(
-    double Width, double CenterWidth, double SideWidth, bool ShowLeft, bool ShowRight,
+    double Width, double CenterWidth, double LeftWidth, double RightWidth, bool ShowLeft, bool ShowRight,
     CompactMediaDetail MediaDetail)
 {
     public static CompactWidgetLayout Calculate(double availableWidth, double builtinWidth,
@@ -20,8 +20,9 @@ public sealed record CompactWidgetLayout(
         const double edges = 28, gap = 8, clockMinimum = 56;
         double limit = Math.Min(680, availableWidth);
         bool left = leftWidth > 0, right = rightWidth > 0;
-        double Side() => Math.Max(left ? leftWidth + gap : 0, right ? rightWidth + gap : 0);
-        double Budget() => limit - edges - Side() * 2;
+        double Left() => left ? leftWidth + gap : 0;
+        double Right() => right ? rightWidth + gap : 0;
+        double Budget() => limit - edges - Left() - Right();
         while (true)
         {
             var detail = CompactMediaDetail.Full;
@@ -37,8 +38,8 @@ public sealed record CompactWidgetLayout(
             if (Budget() >= minimum || (!left && !right))
             {
                 double center = Math.Max(0, Math.Min(desired, Budget()));
-                double width = Math.Min(limit, edges + center + Side() * 2);
-                return new(width, center, Side(), left, right, detail);
+                double width = Math.Min(limit, edges + center + Left() + Right());
+                return new(width, center, Left(), Right(), left, right, detail);
             }
             // Keep complete widgets. On exceptionally narrow displays, withdraw the wider one first.
             if (left && (!right || leftWidth > rightWidth)) left = false;

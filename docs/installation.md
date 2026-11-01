@@ -35,7 +35,7 @@
 Release 同时提供 ZIP 和 `SHA256SUMS.txt`。在 PowerShell 中计算文件哈希，与同次 Release 的校验记录比较：
 
 ```powershell
-Get-FileHash .\LandBar-v0.6.0-win-x64.zip -Algorithm SHA256
+Get-FileHash .\LandBar-v0.6.1-win-x64.zip -Algorithm SHA256
 ```
 
 文件名应对应实际下载的版本。

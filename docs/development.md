@@ -54,7 +54,7 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 
 `Build.ps1` 先请求当前 `dist/app` 中的 LandBar 正常退出，再发布自包含程序，构建稀疏身份包并整理安装脚本。普通本地构建产物位于 `dist`。
 
-`Package.ps1` 从独立构建目录按白名单整理发布文件，保留正在运行的 `dist` 实例。默认生成 `releases/LandBar-v<Version>-win-x64.zip` 与 `releases/SHA256SUMS.txt`。可使用 `-Version v0.6.0` 校验指定版本，或通过 `-OutputDirectory` 指定输出目录。
+`Package.ps1` 从独立构建目录按白名单整理发布文件，保留正在运行的 `dist` 实例。默认生成 `releases/LandBar-v<Version>-win-x64.zip` 与 `releases/SHA256SUMS.txt`。可使用 `-Version v0.6.1` 校验指定版本，或通过 `-OutputDirectory` 指定输出目录。
 
 归档包含应用、身份文件、安装／启动／卸载脚本、使用文档、图片及第三方声明。本地通知、封面缓存、运行诊断和历史构建产物留在发布包之外。
 
@@ -81,7 +81,7 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 
 1. 在 `src/LandBar/LandBar.csproj` 更新 `Version`，提交代码与相应说明。
 2. 确认该提交的 Windows CI 通过。
-3. 创建与版本一致的 `v<Version>` 标签，例如 `v0.6.0`，推送该标签。
+3. 创建与版本一致的 `v<Version>` 标签，例如 `v0.6.1`，推送该标签。
 4. [Release 工作流](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/release.yml)校验标签与项目版本，再构建并上传 ZIP 和校验记录。
 5. [发布校验工作流](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/verify-release.yml)从公开地址下载 ZIP 与校验文件，检查版本、归档内容和 SHA-256；也可在 Actions 中指定标签手动运行。
 

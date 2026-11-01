@@ -28,8 +28,9 @@ internal static class Program
         Directory.CreateDirectory(output);
         string settings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LandBar", "settings.json");
         string? before = Hash(settings);
-        Application app = args.Contains("--ring-only") ? new RingProbe(output)
-            : args.Contains("--codex-only") ? new CodexViewProbe(output) : new Probe(output);
+        Application app = args.Contains("--clock-ring-only") ? new ClockRingAlignmentProbe(output)
+            : args.Contains("--ring-only") ? new RingProbe(output)
+            : args.Contains("--codex-only") ? new CodexViewProbe(output) : new Probe(output, args.Contains("--reflow-only"));
         app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         XNamespace ns = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
         var source = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "Production-App.xaml"));
@@ -104,8 +105,10 @@ internal static class Program
                 _ => new { type = "sprite", width = mode == "wide" ? 64 : 28, height = 28, pixelWidth = 8, pixelHeight = 8,
                     palette = new[] { "#00000000", "#BEDDC9", "#86BBA4" }, frames = new[] { frame1, frame2 }, fps = 6 }
             };
-            View("avatar", "idle.widget", avatar, placement: new { defaultSide = "left", allowedSides = new[] { "left", "right" } });
-            View("ring", "idle.right", new { type = "ring", width = 28, height = 28, value = 0.5, text = "50", fontSize = 12,
+            if (mode is "left-off" or "both-off") Send(new { type = "removeView", id = "avatar" });
+            else View("avatar", "idle.widget", avatar, placement: new { defaultSide = "left", allowedSides = new[] { "left", "right" } });
+            if (mode is "right-off" or "both-off") Send(new { type = "removeView", id = "ring" });
+            else View("ring", "idle.right", new { type = "ring", width = 28, height = 28, value = 0.5, text = "50", fontSize = 12,
                 color = "#BEDDC9", trackColor = "#292D30", thickness = 3 },
                 placement: new { defaultSide = "right", allowedSides = mode == "flexible" ? new[] { "left", "right" } : new[] { "right" } });
         }
@@ -130,7 +133,7 @@ internal static class Program
             {
                 string slot = root.GetProperty("slot").GetString()!;
                 var data = root.GetProperty("data");
-                if (slot == "idle.widget" && data.TryGetProperty("layoutFixture", out var layoutFixture))
+                if (data.TryGetProperty("layoutFixture", out var layoutFixture))
                 {
                     Widgets(layoutFixture.GetString()!);
                     continue;
@@ -148,7 +151,7 @@ internal static class Program
         return 0;
     }
 
-    private sealed class Probe(string output) : Application
+    private sealed class Probe(string output, bool reflowOnly = false) : Application
     {
         private LandBar.MainWindow _window = null!;
         private PluginManager? _manager;
@@ -203,7 +206,9 @@ internal static class Program
             }
             else Check(!sprite.IsAnimating, "System animation preferences disable sprite timers");
             Capture("synthetic-idle-widgets.png");
+            if (reflowOnly) { await CompactReflowScenarios(); return; }
             await PlacementScenarios();
+            await CompactReflowScenarios();
             var click = new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left)
                 { RoutedEvent = UIElement.MouseLeftButtonUpEvent };
             Invoke("PluginIdle_Click", Presenter("PluginIdleLeft"), click); await Settle();
@@ -291,12 +296,20 @@ internal static class Program
             }
             else Check(!publicSprite.IsAnimating, "The public sample respects system animation preferences");
             Capture("public-pixel-idle.png");
+            double beforeMoveWidth = Element<FrameworkElement>("Island").ActualWidth;
             Check(Assign("view:pixel-pet:avatar", "right"), "The distributed sample can move to the right side");
-            Render(); await Settle();
+            Render();
+            Check(!((IslandMotion)Get("_motion")!).IsAnimating,
+                "Moving a same-width public widget between sides does not restart shell motion");
+            await Settle();
             Check(Presenter("PluginIdleLeft").View is null && Presenter("PluginIdleRight").View?.StableKey == publicAvatar.StableKey &&
                 _settings.PluginViewBindings.Values.Count(value => value == publicAvatar.StableKey) == 1,
                 "Moving the distributed sample preserves its identity without duplicate avatars");
-            CheckCenteredCompact("A single right-side public avatar keeps the idle clock centered");
+            Check(Math.Abs(beforeMoveWidth - 148) < .75 && Math.Abs(Element<FrameworkElement>("Island").ActualWidth - beforeMoveWidth) < .75 &&
+                ((ColumnDefinition)_window.FindName("CompactLeftColumn")).ActualWidth < .75 &&
+                Math.Abs(((ColumnDefinition)_window.FindName("CompactRightColumn")).ActualWidth - 36) < .75,
+                "A same-width side move reallocates its track without changing the compact shell size");
+            CheckCenteredCompact("A single right-side public avatar centers the idle clock within the remaining body area");
             CheckCompactBounds("The public right-side avatar remains entirely within the shell");
             var movedSprite = Descendants<PluginSpriteImage>(Presenter("PluginIdleRight")).Single();
             if (SystemParameters.ClientAreaAnimation)
@@ -331,6 +344,31 @@ internal static class Program
             Check(Texts(Presenter("ActivityOverrideContent").View!.Root).Any(text => text == "配色：晴蓝"),
                 "The public sample button reaches PowerShell and updates the page and avatar palette");
             Capture("public-pixel-page-theme.png");
+            Check(await _manager.StartAsync("fixture"), "A separate right-ring provider starts beside the distributed pixel sample");
+            await Until(() => _manager.Views.Count == 12);
+            Assign("view:pixel-pet:avatar", "left"); Bind("idle.right", "ring");
+            Set("_sessions", new[] { new MediaSessionSnapshot("demo.music", "independent.app", "合成播放器", "合成曲目", "合成来源", null, true, true, true, true, true) });
+            Invoke("Collapse"); Render(); await Settle();
+            double enabledPixelWidth = Element<FrameworkElement>("Island").ActualWidth;
+            Check(Presenter("PluginIdleLeft").View?.PluginId == "pixel-pet" && Presenter("PluginIdleRight").View?.PluginId == "fixture",
+                "The public pixel sample and an independent ring provider coexist with playing media");
+            await _manager.StopAsync("pixel-pet"); Render(); await Settle();
+            var compactRoot = Element<FrameworkElement>("HoverSurface");
+            double coverInset = Element<FrameworkElement>("CompactCovers").TranslatePoint(new Point(), compactRoot).X -
+                Element<FrameworkElement>("Island").TranslatePoint(new Point(), compactRoot).X;
+            Check(!_manager.Views.Any(view => view.PluginId == "pixel-pet") && Presenter("PluginIdleLeft").View is null &&
+                ((ColumnDefinition)_window.FindName("CompactLeftColumn")).ActualWidth < .75 &&
+                Presenter("PluginIdleRight").View?.PluginId == "fixture" && coverInset is >= 12 and <= 16 &&
+                Math.Abs(enabledPixelWidth - Element<FrameworkElement>("Island").ActualWidth - 36) < .75,
+                "Stopping the actual pixel sample reclaims its left track while the independent right-ring provider and media remain");
+            CheckCompactBounds("Independent right-ring and media drawings remain complete after stopping the public pixel sample");
+            Capture("public-pet-disabled-media-ring.png");
+            Check(await _manager.StartAsync("pixel-pet"), "The distributed pixel sample restarts beside the independent ring provider");
+            await Until(() => _manager.Views.Count == 12); Render(); await Settle();
+            Check(Presenter("PluginIdleLeft").View?.PluginId == "pixel-pet" && Presenter("PluginIdleRight").View?.PluginId == "fixture" &&
+                Math.Abs(Element<FrameworkElement>("Island").ActualWidth - enabledPixelWidth) < .75,
+                "Restarting the public pixel sample restores only its left track beside the independent provider");
+            await _manager.StopAsync("fixture");
             await _manager.StopAsync("pixel-pet"); Invoke("Collapse"); Render(); await Settle();
             Check(_manager.Views.Count == 0 && Element<ItemsControl>("PluginTabItems").Items.Count == 0 &&
                 Presenter("PluginIdleLeft").View is null && Presenter("PluginIdleRight").View is null,
@@ -385,7 +423,7 @@ internal static class Program
                 _settings.PluginViewBindings.Values.Count(value => value == avatar) == 1 &&
                 !_settings.PluginViewBindings.Values.Contains(ring),
                 "A move replaces an incompatible occupant without duplicating or relocating a fixed widget");
-            CheckCenteredCompact("A single side widget leaves the idle clock at the shell center");
+            CheckCenteredCompact("A single side widget keeps the clock centered in its remaining body area");
             _settings.PluginViewBindings["idle.left"] = avatar;
             Render(); await Settle();
             Check(Presenter("PluginIdleLeft").View?.StableKey == avatar && Presenter("PluginIdleRight").View is null,
@@ -406,12 +444,12 @@ internal static class Program
             Render(); await Settle();
             Check(Math.Abs(Presenter("PluginIdleLeft").ActualWidth - 64) < .75 && Math.Abs(Presenter("PluginIdleRight").ActualWidth - 28) < .75,
                 "The host gives asymmetric 64-DIP and 28-DIP widgets their complete measured widths");
-            CheckCenteredCompact("Asymmetric side widths preserve the idle clock's physical center");
+            CheckCenteredCompact("Asymmetric widgets center the idle clock within the remaining body area");
             CheckCompactBounds("Asymmetric complete widgets fit inside the rounded compact shell");
             Capture("synthetic-asymmetric-widgets.png");
             var narrow = (CompactWidgetLayout)InvokeResult("CalculateCompactPluginLayout", 208.0, 160.0, 2)!;
-            Check(narrow.Width <= 160 && !narrow.ShowLeft && narrow.ShowRight && narrow.MediaDetail == CompactMediaDetail.Clock && narrow.CenterWidth >= 56,
-                "A narrow host preserves the clock and whole smaller widget while withdrawing the wider widget");
+            Check(narrow.Width <= 160 && !narrow.ShowLeft && narrow.ShowRight && narrow.MediaDetail == CompactMediaDetail.Cover && narrow.CenterWidth >= 80,
+                "A narrow host preserves the media cover and whole smaller widget while withdrawing the wider widget");
 
             foreach (int count in new[] { 1, 2 })
             {
@@ -428,7 +466,7 @@ internal static class Program
             Render(); await Settle();
             Check(Math.Abs(Presenter("PluginIdleLeft").ActualWidth - 32) < .75,
                 "An unspecified root width uses the rendered ring's 32-DIP intrinsic width");
-            CheckCenteredCompact("Intrinsic widget measurement preserves the centered idle clock");
+            CheckCenteredCompact("Intrinsic widget measurement centers the idle clock within its allocated body");
             CheckCompactBounds("An intrinsically sized ring stays whole within the compact shell");
 
             await ConfigureWidgets("wide-ring", () => _manager!.Views.Single(view => view.Id == "avatar").Root is { Type: "ring", Width: 64, Height: null });
@@ -437,7 +475,7 @@ internal static class Program
             Check(Math.Abs(Presenter("PluginIdleLeft").ActualWidth - 64) < .75 && wideRing.ActualHeight <= 36 &&
                 Presenter("PluginIdleLeft").Child is FrameworkElement { ActualHeight: <= 36 },
                 "A 64-DIP ring without an explicit height respects the compact 36-DIP height budget");
-            CheckCenteredCompact("A wide ring with inferred height preserves the centered idle clock");
+            CheckCenteredCompact("A wide ring with inferred height centers the clock within its allocated body");
             CheckCompactBounds("A wide ring with inferred height remains complete within its presenter and shell");
 
             await ConfigureWidgets("normal", () => _manager!.Views.Single(view => view.Id == "avatar").Root is { Type: "sprite", Width: 28 });
@@ -484,9 +522,137 @@ internal static class Program
             Bind("idle.left", "avatar"); Bind("idle.right", "ring"); Render(); await Settle();
         }
 
+        private async Task CompactReflowScenarios()
+        {
+            var samples = new List<object>();
+            int visibleFrames = 0, clippedFrames = 0, anchorErrors = 0, nativeChanges = 0;
+            var host = Element<FrameworkElement>("HoverSurface");
+            GetWindowRect(new WindowInteropHelper(_window).Handle, out var nativeStart);
+            async Task Observe(string phase)
+            {
+                var watch = Stopwatch.StartNew();
+                while (watch.ElapsedMilliseconds < 800)
+                {
+                    await Task.Delay(8);
+                    var shell = Element<FrameworkElement>("Island");
+                    var viewport = Element<FrameworkElement>("IslandViewport");
+                    var content = Element<FrameworkElement>("ContentLayout");
+                    var origin = shell.TranslatePoint(new Point(), host);
+                    double anchorError = Math.Abs(origin.X + shell.ActualWidth / 2 - host.ActualWidth / 2);
+                    bool anchor = anchorError <= 1 / VisualTreeHelper.GetDpi(_window).DpiScaleX && Math.Abs(origin.Y) < .01;
+                    if (!anchor) anchorErrors++;
+                    GetWindowRect(new WindowInteropHelper(_window).Handle, out var nativeNow);
+                    if (!nativeNow.Equals(nativeStart)) nativeChanges++;
+                    bool painted = content.Opacity > .02;
+                    bool fits = true;
+                    if (painted)
+                    {
+                        visibleFrames++;
+                        var elements = new List<FrameworkElement> { Element<FrameworkElement>("CompactCovers"),
+                            Element<FrameworkElement>("ClockLabel"), Element<FrameworkElement>("AudioBars") };
+                        foreach (var presenter in new[] { Presenter("PluginIdleLeft"), Presenter("PluginIdleRight") })
+                            if (presenter.Child is FrameworkElement child) elements.Add(child);
+                        foreach (var element in elements.Where(element => element.IsVisible && element.ActualWidth > 0 && element.ActualHeight > 0))
+                        {
+                            var bounds = element.TransformToAncestor(viewport).TransformBounds(new Rect(element.RenderSize));
+                            var clip = viewport.Clip!;
+                            fits &= clip.FillContains(bounds.TopLeft) && clip.FillContains(bounds.TopRight) &&
+                                clip.FillContains(bounds.BottomLeft) && clip.FillContains(bounds.BottomRight);
+                        }
+                        if (!fits) clippedFrames++;
+                    }
+                    samples.Add(new { phase, elapsedMs = watch.Elapsed.TotalMilliseconds, width = shell.ActualWidth,
+                        opacity = content.Opacity, painted, fits, anchorError, top = origin.Y });
+                }
+            }
+            async Task Reconfigure(string mode, Func<bool> ready)
+            {
+                var observation = Observe(mode);
+                await ConfigureWidgets(mode, ready);
+                Render(); await observation; await Settle();
+            }
+            ColumnDefinition Column(string name) => (ColumnDefinition)_window.FindName(name);
+            double Width() => Element<FrameworkElement>("Island").ActualWidth;
+            double CoverMargin()
+            {
+                var cover = Element<FrameworkElement>("CompactCovers");
+                return cover.TranslatePoint(new Point(), host).X - Element<FrameworkElement>("Island").TranslatePoint(new Point(), host).X;
+            }
+            void CompactState(string name) => Check(Element<FrameworkElement>("CompactView").IsVisible &&
+                !Element<FrameworkElement>("ActivityView").IsVisible && (string)Get("_view")!.ToString()! == "Automatic", name);
+            string bindings = JsonSerializer.Serialize(_settings.PluginViewBindings);
+            Set("_sessions", new[] { new MediaSessionSnapshot("demo.music", "reflow.app", "合成播放器", "合成曲目", "合成来源", null, true, true, true, true, true) });
+            Render(); await Settle();
+            double bothWidth = Width();
+            Check(Math.Abs(bothWidth - 252) < .75, "Two 28-DIP widgets and one media source use only their actual 252-DIP width");
+            await Reconfigure("left-off", () => !_manager!.Views.Any(view => view.Id == "avatar"));
+            Check(Column("CompactLeftColumn").ActualWidth < .75 && Presenter("PluginIdleLeft").View is null,
+                "Withdrawing the left widget removes its entire compact track");
+            Check(Math.Abs(bothWidth - Width() - 36) < .75 && Math.Abs(Width() - 216) < .75,
+                "Withdrawing a 28-DIP left widget reclaims its 36-DIP track while keeping the right ring");
+            Check(CoverMargin() is >= 12 and <= 16 && Presenter("PluginIdleRight").View?.Id == "ring",
+                "Media artwork returns to the normal leading margin when only the right ring remains");
+            CompactState("Withdrawing a widget while media plays keeps the island collapsed");
+            CheckCompactBounds("The media, clock and remaining right ring stay complete after the left widget is withdrawn");
+            Capture("synthetic-media-right-only.png");
+
+            await Reconfigure("normal", () => _manager!.Views.Any(view => view.Id == "avatar"));
+            Check(Math.Abs(Width() - bothWidth) < .75 && Presenter("PluginIdleLeft").View?.Id == "avatar",
+                "Republishing the left widget restores exactly its own width");
+            await Reconfigure("right-off", () => !_manager!.Views.Any(view => view.Id == "ring"));
+            Check(Column("CompactRightColumn").ActualWidth < .75 && Presenter("PluginIdleRight").View is null && Math.Abs(Width() - 216) < .75,
+                "Withdrawing the right widget independently removes its track without reserving a trailing placeholder");
+            CheckCompactBounds("The media, clock and remaining left widget stay complete after the right widget is withdrawn");
+            Capture("synthetic-media-left-only.png");
+            await Reconfigure("both-off", () => !_manager!.Views.Any(view => view.Id is "avatar" or "ring"));
+            Check(Column("CompactLeftColumn").ActualWidth < .75 && Column("CompactRightColumn").ActualWidth < .75 && Math.Abs(Width() - 180) < .75,
+                "Withdrawing both widgets restores the ordinary 180-DIP media capsule");
+            Check(CoverMargin() is >= 12 and <= 16, "No media-side placeholder remains after both widgets are withdrawn");
+            Capture("synthetic-media-no-widgets.png");
+
+            await Reconfigure("wide", () => _manager!.Views.Any(view => view.Id == "avatar" && view.Root.Width == 64) && _manager.Views.Any(view => view.Id == "ring"));
+            double wideWidth = Width();
+            Check(Math.Abs(wideWidth - 288) < .75 && Math.Abs(Column("CompactLeftColumn").ActualWidth - 72) < .75 &&
+                Math.Abs(Column("CompactRightColumn").ActualWidth - 36) < .75,
+                "Asymmetric 64-DIP and 28-DIP widgets receive independently sized media tracks");
+            await Reconfigure("left-off", () => !_manager!.Views.Any(view => view.Id == "avatar"));
+            Check(Math.Abs(wideWidth - Width() - 72) < .75 && CoverMargin() is >= 12 and <= 16,
+                "Removing a wide left widget reclaims 72 DIP instead of retaining a mirror track");
+            await Reconfigure("normal", () => _manager!.Views.Any(view => view.Id == "avatar"));
+
+            await _manager!.StopAsync("fixture");
+            await Until(() => _manager.Views.Count == 0); Render(); await Settle();
+            Check(Math.Abs(Width() - 180) < .75 && Column("CompactLeftColumn").ActualWidth < .75 && Column("CompactRightColumn").ActualWidth < .75,
+                "Stopping the provider removes all widget tracks while retaining the playing media");
+            Check(await _manager.StartAsync("fixture"), "A stopped provider restarts after compact tracks are reclaimed");
+            await Until(() => _manager.Views.Count == 10); Render(); await Settle();
+            Check(Math.Abs(Width() - bothWidth) < .75 && Presenter("PluginIdleLeft").View?.Id == "avatar" && Presenter("PluginIdleRight").View?.Id == "ring",
+                "Restarting a provider restores selected widgets with their retained bindings");
+            Check(bindings == JsonSerializer.Serialize(_settings.PluginViewBindings),
+                "View withdrawal, provider stop and restart preserve the user's selected side bindings");
+
+            Set("_sessions", Array.Empty<MediaSessionSnapshot>()); Render(); await Settle();
+            await Reconfigure("left-off", () => !_manager.Views.Any(view => view.Id == "avatar"));
+            Check(Math.Abs(Width() - 148) < .75 && Column("CompactLeftColumn").ActualWidth < .75,
+                "An idle clock with only a right widget uses 148 DIP and no left placeholder");
+            CheckCenteredCompact("The idle clock centers in its available area beside a sole right widget");
+            await Reconfigure("right-off", () => _manager.Views.Any(view => view.Id == "avatar") && !_manager.Views.Any(view => view.Id == "ring"));
+            Check(Math.Abs(Width() - 148) < .75 && Column("CompactRightColumn").ActualWidth < .75,
+                "An idle clock with only a left widget uses 148 DIP and no right placeholder");
+            CheckCenteredCompact("The idle clock centers in its available area beside a sole left widget");
+            await Reconfigure("both-off", () => !_manager.Views.Any(view => view.Id is "avatar" or "ring"));
+            Check(Math.Abs(Width() - 112) < .75, "An idle clock without either widget returns to its 112-DIP baseline");
+            CheckCenteredCompact("The idle clock returns to the shell center after both widget tracks disappear");
+            await Reconfigure("normal", () => _manager.Views.Any(view => view.Id == "avatar") && _manager.Views.Any(view => view.Id == "ring"));
+            File.WriteAllText(Path.Combine(output, "compact-reflow-frames.json"), JsonSerializer.Serialize(new
+            { visibleFrames, clippedFrames, anchorErrors, nativeChanges, samples }, new JsonSerializerOptions { WriteIndented = true }));
+            Check(visibleFrames > 0 && clippedFrames == 0, "Visible widgets and media remain complete during repeated compact withdrawal and restoration");
+            Check(anchorErrors == 0 && nativeChanges == 0, "Compact reflow preserves the shell's top-center anchor and fixed native host on every sampled frame");
+        }
+
         private async Task ConfigureWidgets(string mode, Func<bool> ready)
         {
-            if (!await _manager!.SendContextAsync("fixture", "idle.widget", new { layoutFixture = mode }))
+            if (!await _manager!.SendContextAsync("fixture", "activity.tab", new { layoutFixture = mode }))
                 throw new InvalidOperationException("Synthetic widget configuration was rejected.");
             await Until(ready);
         }
@@ -498,11 +664,16 @@ internal static class Program
             var shell = Element<FrameworkElement>("Island");
             var center = Element<FrameworkElement>("BuiltinCompactView");
             var root = Element<FrameworkElement>("HoverSurface");
+            var compact = Element<FrameworkElement>("CompactView");
+            double left = ((ColumnDefinition)_window.FindName("CompactLeftColumn")).ActualWidth;
+            double right = ((ColumnDefinition)_window.FindName("CompactRightColumn")).ActualWidth;
             double shellCenter = shell.TranslatePoint(new Point(shell.ActualWidth / 2, 0), root).X;
+            double expectedCenter = compact.TranslatePoint(new Point(left + (compact.ActualWidth - left - right) / 2, 0), root).X;
             double bodyCenter = center.TranslatePoint(new Point(center.ActualWidth / 2, 0), root).X;
             double clockCenter = Element<FrameworkElement>("ClockLabel").TranslatePoint(new Point(Element<FrameworkElement>("ClockLabel").ActualWidth / 2, 0), root).X;
             double tolerance = 1 / VisualTreeHelper.GetDpi(_window).DpiScaleX;
-            Check(Math.Abs(shellCenter - bodyCenter) <= tolerance && Math.Abs(shellCenter - clockCenter) <= tolerance, name);
+            Check(Math.Abs(expectedCenter - bodyCenter) <= tolerance && Math.Abs(expectedCenter - clockCenter) <= tolerance &&
+                Math.Abs(shellCenter - root.ActualWidth / 2) <= tolerance, name);
         }
 
         private void CheckCompactBounds(string name)
@@ -594,5 +765,10 @@ internal static class Program
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeRectangle { public int Left, Top, Right, Bottom; }
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetWindowRect(IntPtr window, out NativeRectangle rectangle);
     }
 }
