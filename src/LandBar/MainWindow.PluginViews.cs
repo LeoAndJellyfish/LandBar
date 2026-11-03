@@ -15,7 +15,7 @@ namespace LandBar;
 public partial class MainWindow
 {
     private string? _activePluginTabKey;
-    private string _pluginTabsKey = "", _pluginChoicesKey = "";
+    private string _pluginChoicesKey = "";
     private bool _forceBuiltinPluginManagement;
     private readonly Dictionary<string, string> _pluginContextKeys = new(StringComparer.Ordinal);
     private readonly PluginViewPresenter _measureLeft = new(), _measureRight = new(), _measureCenter = new();
@@ -68,27 +68,13 @@ public partial class MainWindow
         var activeContexts = CurrentPluginViews.Select(view => view.PluginId + ":" + view.Slot).ToHashSet(StringComparer.Ordinal);
         foreach (string contextKey in _pluginContextKeys.Keys.Where(key => !activeContexts.Contains(key)).ToArray()) _pluginContextKeys.Remove(contextKey);
         var tabs = PluginTabs;
-        if (_pluginsTab && !tabs.Any(tab => tab.Key == _activePluginTabKey))
-        {
-            _activePluginTabKey = tabs.FirstOrDefault()?.Key;
-            if (_activePluginTabKey is null) _pluginsTab = false;
-        }
-        string key = _activePluginTabKey + ":" + _pluginsTab + ":" + string.Join("|", tabs.Select(tab => tab.Key + ":" + tab.Title));
-        if (key == _pluginTabsKey) return;
-        _pluginTabsKey = key;
-        PluginTabItems.ItemsSource = tabs.Select(tab => new
-        {
-            tab.Key, tab.Title,
-            Background = Brush(_pluginsTab && tab.Key == _activePluginTabKey ? "#24242B" : "#08080A"),
-            Foreground = Brush(_pluginsTab && tab.Key == _activePluginTabKey ? "#F2F2F4" : "#92929F")
-        }).ToArray();
+        SyncActivityTabChoices(tabs);
     }
 
     private void PluginTab_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not string key) return;
-        _activePluginTabKey = key; _pluginsTab = true; _notificationsTab = false; _page = 0;
-        RecordInteraction(); Render(); e.Handled = true;
+        SelectActivityTab(key); e.Handled = true;
     }
 
     private CompactWidgetLayout CalculateCompactPluginLayout(double builtinWidth, double availableWidth, int mediaCount)
@@ -314,6 +300,8 @@ public partial class MainWindow
 
     private void DisposePluginViews()
     {
+        ActivityTabs.LayoutUpdated -= ActivityTabs_LayoutUpdated;
+        _activityTabsNeedCenter = false;
         foreach (var presenter in new[] { PluginIdleLeft, PluginIdleRight, PluginIdleContent, PluginStandalone, ActivityOverrideContent, PageOverrideContent }) presenter.Dispose();
         _measureLeft.Dispose(); _measureRight.Dispose(); _measureCenter.Dispose(); _measureStandalone.Dispose();
     }

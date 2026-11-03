@@ -268,25 +268,34 @@
             </Grid.RowDefinitions>
             <Grid Margin="10,0">
               <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-              <ScrollViewer x:Name="ActivityTabScroll" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" CanContentScroll="False" PanningMode="HorizontalOnly" Margin="0,0,8,0">
-              <StackPanel x:Name="ActivityTabs" Orientation="Horizontal" VerticalAlignment="Center">
+              <Grid x:Name="ActivityTabNavigation" Margin="0,0,8,0" PreviewKeyDown="ActivityTabs_PreviewKeyDown">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <Button x:Name="ActivityTabsPrevious" Style="{StaticResource IconButton}" Width="24" Foreground="#92929F" Visibility="Collapsed" Click="ActivityTabsPrevious_Click" IsTabStop="False" ToolTip="上一个标签页" AutomationProperties.Name="上一个标签页"><Path Style="{StaticResource LineIcon}" Data="M10.5,3 L5.5,8 L10.5,13"/></Button>
+              <ScrollViewer x:Name="ActivityTabScroll" Grid.Column="1" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" CanContentScroll="False" PanningMode="None">
+              <StackPanel x:Name="ActivityTabs" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                <Border x:Name="ActivityTabsLeadingSpace" Width="0"/>
                 <Button x:Name="MediaTab" Content="媒体" Background="#24242B" Foreground="#F2F2F4" Padding="9,5" Click="MediaTab_Click"/>
                 <Button x:Name="NotificationsTab" Content="通知" Background="Transparent" Foreground="#92929F" Padding="9,5" Margin="4,0,0,0" Click="NotificationsTab_Click"/>
                 <Button x:Name="PluginsTab" Visibility="Collapsed" Content="插件" Background="Transparent" Foreground="#92929F" Padding="9,5" Margin="4,0,0,0" Click="PluginsTab_Click"/>
                 <ItemsControl x:Name="PluginTabItems">
                   <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate><DataTemplate>
-                    <Button Content="{Binding Title}" Tag="{Binding Key}" Background="{Binding Background}" Foreground="{Binding Foreground}" Padding="9,5" Margin="4,0,0,0" MaxWidth="140" ToolTip="{Binding Title}" Click="PluginTab_Click">
+                    <Button Content="{Binding Title}" Tag="{Binding Key}" Background="{Binding Background}" Foreground="{Binding Foreground}" IsTabStop="{Binding IsTabStop}" AutomationProperties.ItemStatus="{Binding Status}" Padding="9,5" Margin="4,0,0,0" MaxWidth="140" ToolTip="{Binding Title}" Click="PluginTab_Click">
                       <Button.ContentTemplate><DataTemplate><TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis"/></DataTemplate></Button.ContentTemplate>
                     </Button>
                   </DataTemplate></ItemsControl.ItemTemplate>
                 </ItemsControl>
+                <Border x:Name="ActivityTabsTrailingSpace" Width="0"/>
               </StackPanel>
               </ScrollViewer>
+                <Button x:Name="ActivityTabsNext" Grid.Column="2" Style="{StaticResource IconButton}" Width="24" Foreground="#92929F" Visibility="Collapsed" Click="ActivityTabsNext_Click" IsTabStop="False" ToolTip="下一个标签页" AutomationProperties.Name="下一个标签页"><Path Style="{StaticResource LineIcon}" Data="M5.5,3 L10.5,8 L5.5,13"/></Button>
+              </Grid>
               <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Border Width="36">
                 <Button x:Name="ClearNotificationsButton" Style="{StaticResource IconButton}" Visibility="Collapsed" Foreground="#A2A2AE" Margin="0,0,4,0" Click="ClearNotifications_Click" ToolTip="清空消息" AutomationProperties.Name="清空消息">
                   <Path Style="{StaticResource LineIcon}" Data="M3,4.5 L13,4.5 M6,4.5 L6,2.5 L10,2.5 L10,4.5 M4.5,4.5 L5.2,13.5 L10.8,13.5 L11.5,4.5 M6.8,7 L6.8,11 M9.2,7 L9.2,11"/>
                 </Button>
+                </Border>
                 <Button Style="{StaticResource IconButton}" Foreground="#93939F" Click="ControlCenter_Click" AutomationProperties.Name="控制中心">
                   <Path Style="{StaticResource LineIcon}" Data="M2,4 L14,4 M2,8 L14,8 M2,12 L14,12 M5,2 L5,6 M11,6 L11,10 M6,10 L6,14"/>
                 </Button>

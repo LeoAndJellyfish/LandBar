@@ -71,6 +71,7 @@ public partial class MainWindow : Window
         _scheduler = _liveScheduler;
         _demo = demo; _smoke = smoke; _capturePath = capturePath;
         InitializeComponent();
+        ConfigureActivityTabs();
         ConfigureViewPresenters();
         Icon = BitmapFrame.Create(new Uri(ApplicationBrand.IconUri));
         IslandViewport.Clip = _surfaceClip;
@@ -272,7 +273,7 @@ public partial class MainWindow : Window
         RenderAutoCollapseOptions();
         RenderShrinkOptions();
         RenderPluginManagement();
-        RenderPluginTabs();
+        NormalizePluginTabSelection();
         var sessions = OrderedSessions;
         var history = NotificationHistory;
         bool automaticCards = _view == IslandView.Automatic && !_settings.Quiet && _scheduler.TotalCount > 0;
@@ -352,7 +353,7 @@ public partial class MainWindow : Window
             SetVisible(ControlCenterView, targetView == IslandView.ControlCenter);
             SetVisible(SettingsScroll, targetView == IslandView.Settings);
             SetVisible(PluginManagementScroll, targetView == IslandView.PluginSettings);
-            SetVisible(ActivityTabs, targetView == IslandView.Activity);
+            SetVisible(ActivityTabNavigation, targetView == IslandView.Activity);
             SetVisible(ClearNotificationsButton, targetView == IslandView.Activity && showNotifications);
             ClearNotificationsButton.IsEnabled = history.Count > 0;
             SetVisible(EmptyState, activity && cards.Count == 0);
@@ -362,6 +363,7 @@ public partial class MainWindow : Window
             MediaTab.Background = Brush(showNotifications || showPlugins ? "#08080A" : "#24242B");
             NotificationsTab.Background = Brush(showNotifications ? "#24242B" : "#08080A");
             MediaTab.Content = sessions.Count > 1 ? $"媒体 {sessions.Count}" : "媒体";
+            RenderPluginTabs();
             PluginsTab.Foreground = Brush(showPlugins ? "#F2F2F4" : "#83838F");
             PluginsTab.Background = Brush(showPlugins ? "#24242B" : "#08080A");
             SetVisible(PageControls, pageCount > 1);
@@ -551,8 +553,8 @@ public partial class MainWindow : Window
     private void ControlCenter_RightClick(object sender, MouseButtonEventArgs e) { ChangeView(IslandView.ControlCenter); e.Handled = true; }
     private void Settings_Click(object sender, RoutedEventArgs e) { ChangeView(IslandView.Settings); e.Handled = true; }
     private void Collapse_Click(object sender, RoutedEventArgs e) { Collapse(); e.Handled = true; }
-    private void MediaTab_Click(object sender, RoutedEventArgs e) { _pluginsTab = false; _notificationsTab = false; _page = 0; Render(); e.Handled = true; }
-    private void NotificationsTab_Click(object sender, RoutedEventArgs e) { _pluginsTab = false; _notificationsTab = true; _page = 0; Render(); e.Handled = true; }
+    private void MediaTab_Click(object sender, RoutedEventArgs e) { SelectActivityTab("builtin:media"); e.Handled = true; }
+    private void NotificationsTab_Click(object sender, RoutedEventArgs e) { SelectActivityTab("builtin:notifications"); e.Handled = true; }
     private void ClearNotifications_Click(object sender, RoutedEventArgs e)
     {
         _scheduler.ClearNotifications();
@@ -564,9 +566,10 @@ public partial class MainWindow : Window
     private void Island_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e) => UpdatePointerHover(e.GetPosition(HoverSurface));
     private void Island_MouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if (ActivityTabScroll.IsMouseOver)
+        if (ActivityTabNavigation.IsMouseOver ||
+            e.OriginalSource is DependencyObject source && ActivityTabNavigation.IsAncestorOf(source))
         {
-            ActivityTabScroll.ScrollToHorizontalOffset(Math.Max(0, ActivityTabScroll.HorizontalOffset - e.Delta));
+            NavigateActivityTab(e.Delta > 0 ? -1 : 1);
             e.Handled = true; return;
         }
         if (_view is IslandView.Settings or IslandView.ControlCenter or IslandView.PluginSettings) return;
