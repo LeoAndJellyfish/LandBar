@@ -50,6 +50,9 @@ var tests = new (string Name, Func<Task> Run)[]
     ("Side widgets explicitly declare fixed or user-selectable placement", ViewTests.Placement),
     ("Missing, contradictory and malformed placement declarations are rejected", ViewTests.PlacementValidation),
     ("Placement-only changes refresh views while equivalent side sets stay unchanged", ViewTests.PlacementUpdates),
+    ("Standalone eligibility defaults compatibly across all idle component slots", StandaloneTests.Eligibility),
+    ("Standalone metadata rejects malformed values, duplicate fields and page declarations", StandaloneTests.Validation),
+    ("Standalone-only updates refresh views while omitted and explicit defaults are equivalent", StandaloneTests.Updates),
     ("Providers publish independent named tabs and title-only updates", ViewTests.Tabs),
     ("Tab titles enforce single-line UTF16 limits with Chinese and emoji", ViewTests.TabTitles),
     ("Bundled pixel animation sample publishes views and handles palette changes", ViewTests.PixelSample)
@@ -548,7 +551,11 @@ static async Task<int> Fixture(string mode)
     string? hello = await Console.In.ReadLineAsync();
     if (hello is null) return 2;
     using (var json = JsonDocument.Parse(hello))
+    {
         if (json.RootElement.GetProperty("type").GetString() != "hello") return 3;
+        if (mode.StartsWith("view-standalone-", StringComparison.Ordinal) &&
+            !json.RootElement.GetProperty("features").EnumerateArray().Any(feature => feature.GetString() == "standaloneWidgets")) return 4;
+    }
     if (mode == "silenthello") { await Task.Delay(60000); return 0; }
     await Send(new { type = "hello", protocolVersion = mode == "wronghello" ? 2 : 1 });
     if (mode == "wronghello") { await Task.Delay(5000); return 0; }

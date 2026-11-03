@@ -54,7 +54,8 @@ function New-Sprite([int]$Size) {
 function Send-Views {
     $theme = $themes[$script:themeIndex]
     Send-Message @{
-        type = 'view'; id = 'avatar'; slot = 'idle.widget'
+        type = 'view'; id = 'avatar'; slot = 'idle.widget'; title = '像素伙伴'
+        allowStandalone = $true
         placement = @{ defaultSide = 'left'; allowedSides = @('left', 'right') }
         root = (New-Sprite 28)
     }

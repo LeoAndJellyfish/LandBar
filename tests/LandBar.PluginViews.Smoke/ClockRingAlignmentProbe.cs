@@ -46,6 +46,7 @@ internal sealed class ClockRingAlignmentProbe(string output) : Application
         _window = new LandBar.MainWindow(demo: true, smoke: false, preview: false);
         var settings = (AppSettings)Field("_settings").GetValue(_window)!;
         settings.Quiet = true;
+        settings.ShrinkMode = false;
         var clock = Element<TextBlock>("ClockLabel");
         var content = Element<Grid>("ContentLayout");
         ((Panel)content.Parent).Children.Remove(content);

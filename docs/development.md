@@ -54,7 +54,7 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 
 `Build.ps1` 先请求当前 `dist/app` 中的 LandBar 正常退出，再发布自包含程序，构建稀疏身份包并整理安装脚本。普通本地构建产物位于 `dist`。
 
-`Package.ps1` 从独立构建目录按白名单整理发布文件，保留正在运行的 `dist` 实例。默认生成 `releases/LandBar-v<Version>-win-x64.zip` 与 `releases/SHA256SUMS.txt`。可使用 `-Version v0.6.1` 校验指定版本，或通过 `-OutputDirectory` 指定输出目录。
+`Package.ps1` 从独立构建目录按白名单整理发布文件，保留正在运行的 `dist` 实例。默认生成 `releases/LandBar-v<Version>-win-x64.zip` 与 `releases/SHA256SUMS.txt`。可使用 `-Version v0.7.0` 校验指定版本，或通过 `-OutputDirectory` 指定输出目录。
 
 归档包含应用、身份文件、安装／启动／卸载脚本、使用文档、图片及第三方声明。本地通知、封面缓存、运行诊断和历史构建产物留在发布包之外。
 
@@ -81,7 +81,7 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 
 1. 在 `src/LandBar/LandBar.csproj` 更新 `Version`，提交代码与相应说明。
 2. 确认该提交的 Windows CI 通过。
-3. 创建与版本一致的 `v<Version>` 标签，例如 `v0.6.1`，推送该标签。
+3. 创建与版本一致的 `v<Version>` 标签，例如 `v0.7.0`，推送该标签。
 4. [Release 工作流](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/release.yml)校验标签与项目版本，再构建并上传 ZIP 和校验记录。
 5. [发布校验工作流](https://github.com/LeoAndJellyfish/LandBar/blob/main/.github/workflows/verify-release.yml)从公开地址下载 ZIP 与校验文件，检查版本、归档内容和 SHA-256；也可在 Actions 中指定标签手动运行。
 
@@ -114,6 +114,8 @@ dotnet run --project tests/LandBar.Media.Tests -c Release
 ## 插件开发
 
 插件通过独立进程接入，使用 stdin/stdout 交换 UTF-8 JSON Lines。插件可以发布和撤回卡片、创建独立命名标签，或通过声明式节点替换页面、添加收起态组件。侧边组件使用 `idle.widget`，必须声明 `placement.defaultSide` 和 `placement.allowedSides`，允许固定单侧或由用户选择左右侧。宿主负责布局与动画，插件负责数据和业务逻辑。
+
+收缩模式通过统一组件选择显示内置时钟、播放器封面或插件的 `idle.*` 视图。插件视图默认可独立显示，可通过可选字段 `allowStandalone: false` 退出；宿主在握手中提供 `standaloneWidgets` 能力。收缩选择与普通左右侧绑定独立保存，所选来源不可用时回退到时钟，恢复后重新显示原选择。插件协议仍使用版本 1，已有组件无需迁移。
 
 清单、协议、开发示例及限制见 [插件开发文档](plugins.md)，可运行的示例位于 `samples/focus-timer`、`samples/pixel-pet` 和 `samples/codex-balance`。本地插件目录与显示设置独立保留；旧侧边插件按协议迁移说明补齐位置声明。
 

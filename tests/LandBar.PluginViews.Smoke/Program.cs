@@ -23,12 +23,14 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Contains("--shrink-fixture")) return ShrinkModeProbe.RunFixture().GetAwaiter().GetResult();
         if (args.Contains("--view-fixture")) return Fixture().GetAwaiter().GetResult();
         string output = Path.GetFullPath(args.FirstOrDefault(argument => !argument.StartsWith("--", StringComparison.Ordinal)) ?? "artifacts/plugin-views-smoke");
         Directory.CreateDirectory(output);
         string settings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LandBar", "settings.json");
         string? before = Hash(settings);
-        Application app = args.Contains("--clock-ring-only") ? new ClockRingAlignmentProbe(output)
+        Application app = args.Contains("--shrink-only") ? new ShrinkModeProbe(output)
+            : args.Contains("--clock-ring-only") ? new ClockRingAlignmentProbe(output)
             : args.Contains("--ring-only") ? new RingProbe(output)
             : args.Contains("--codex-only") ? new CodexViewProbe(output) : new Probe(output, args.Contains("--reflow-only"));
         app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -174,7 +176,7 @@ internal static class Program
         {
             _settings = (AppSettings)Get("_settings")!;
             _settings.AutoCollapseSeconds = 0; _settings.Quiet = false; _settings.HideContent = false;
-            _settings.EnablePluginViews = false; _settings.PluginViewBindings = new();
+            _settings.EnablePluginViews = false; _settings.PluginViewBindings = new(); _settings.ShrinkMode = false;
             Invoke("ApplyAutoCollapseSetting");
             await Settle(); Invoke("EndDemo"); Invoke("Collapse"); await Settle();
             SetWindowPos(new WindowInteropHelper(_window).Handle, IntPtr.Zero, -12000, -12000, 0, 0, 0x0015);

@@ -25,6 +25,7 @@ internal static partial class PluginProtocol
         string slot = Text(root, "slot", 32);
         if (!PluginSlots.All.Contains(slot)) throw new InvalidDataException("插件页面插槽不受支持。");
         var placement = ReadPlacement(root, slot);
+        bool allowStandalone = ReadAllowStandalone(root, slot);
         string? title = OptionalText(root, "title", 24);
         if (slot == "activity.tab" && title is null)
             throw new InvalidDataException("activity.tab 页面必须提供 title。");
@@ -44,7 +45,17 @@ internal static partial class PluginProtocol
             if (tree.Width > maximumWidth || tree.Height > 36)
                 throw new InvalidDataException($"{slot} 根节点最大宽度为 {maximumWidth}，最大高度为 36。");
         }
-        return new(pluginId, id, slot, tree, now, title, placement);
+        return new(pluginId, id, slot, tree, now, title, placement, allowStandalone);
+    }
+
+    private static bool ReadAllowStandalone(JsonElement root, string slot)
+    {
+        if (!root.TryGetProperty("allowStandalone", out var json)) return true;
+        if (slot is not ("idle.widget" or "idle.left" or "idle.right" or "idle.content"))
+            throw new InvalidDataException("allowStandalone 仅适用于收起态组件和 idle.content。");
+        if (json.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            throw new InvalidDataException("allowStandalone 必须为布尔值。");
+        return json.GetBoolean();
     }
 
     private static PluginPlacement? ReadPlacement(JsonElement root, string slot)

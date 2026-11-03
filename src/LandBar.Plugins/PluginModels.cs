@@ -18,7 +18,7 @@ public sealed record PluginCard(
 
 /// <summary>Declarative UI owned by one provider run; selecting a view remains a host/user decision.</summary>
 public sealed record PluginView(string PluginId, string Id, string Slot, PluginNode Root, DateTimeOffset UpdatedAt,
-    string? Title = null, PluginPlacement? Placement = null)
+    string? Title = null, PluginPlacement? Placement = null, bool AllowStandalone = true)
 {
     public string StableKey => $"view:{PluginId}:{Id}";
 }
@@ -29,6 +29,10 @@ public sealed record PluginPlacement(string DefaultSide, IReadOnlyList<string> A
 public static class PluginViewPlacement
 {
     public static bool IsSideWidget(PluginView view) => view.Slot is "idle.widget" or "idle.left" or "idle.right";
+
+    /// <summary>A compact component may also occupy the shrink-mode center at the user's explicit choice.</summary>
+    public static bool CanUseStandalone(PluginView view) => view.AllowStandalone &&
+        view.Slot is "idle.widget" or "idle.left" or "idle.right" or "idle.content";
 
     public static bool SupportsSide(PluginView view, string side) => IsSideWidget(view) && side is "left" or "right" &&
         view.Placement is { } placement && placement.AllowedSides.Contains(side, StringComparer.Ordinal);

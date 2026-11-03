@@ -76,6 +76,7 @@ internal static class Program
                 // Geometry sampling is independent of the user's inactivity preference.
                 // Reflection-driven tab changes are not real input, and frame capture adds load.
                 ((AppSettings)Field("_settings").GetValue(_window)!).AutoCollapseSeconds = 0;
+                ((AppSettings)Field("_settings").GetValue(_window)!).ShrinkMode = false;
                 Invoke("ApplyAutoCollapseSetting");
                 _examples = Field("_examples").GetValue(_window);
                 CompositionTarget.Rendering += OnRendering;
@@ -318,6 +319,16 @@ internal static class Program
         private Rect RelativeToIsland(FrameworkElement element, Rect islandBounds)
         {
             var rect = element.TransformToAncestor(_root).TransformBounds(new Rect(element.RenderSize));
+            // Scroll descendants retain IsVisible outside their viewport. Measure only their
+            // painted portion; keep the shell's clip out of this calculation to detect leaks.
+            for (DependencyObject? parent = VisualTreeHelper.GetParent(element); parent is not null && parent != _layout;
+                 parent = VisualTreeHelper.GetParent(parent))
+                if (parent is ScrollContentPresenter or ScrollViewer)
+                {
+                    var viewport = (FrameworkElement)parent;
+                    rect.Intersect(viewport.TransformToAncestor(_root).TransformBounds(new Rect(viewport.RenderSize)));
+                }
+            if (rect.IsEmpty) return rect;
             rect.Offset(-islandBounds.X, -islandBounds.Y);
             return rect;
         }

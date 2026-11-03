@@ -270,6 +270,7 @@ public partial class MainWindow : Window
         ScreenButton.Content = $"屏幕：{Array.FindIndex(Forms.Screen.AllScreens, s => s.DeviceName == GetScreen().DeviceName) + 1}";
         OffsetButton.Content = $"顶部间距：{_settings.TopOffset}";
         RenderAutoCollapseOptions();
+        RenderShrinkOptions();
         RenderPluginManagement();
         RenderPluginTabs();
         var sessions = OrderedSessions;
@@ -309,8 +310,10 @@ public partial class MainWindow : Window
                 cards.AddRange(history.Skip(_page * 2).Take(2).Select(item => FromEvent(item, sessions)));
             }
         }
-        var compactLayout = compact ? CalculateCompactPluginLayout(sessions.Count > 1 ? 208 : sessions.Count > 0 ? 180 : 112,
-            Math.Min(680, availableWidth), sessions.Count) : _compactLayout;
+        var standalone = compact && _settings.ShrinkMode ? ResolveStandaloneComponent(sessions) : null;
+        var compactLayout = standalone is not null ? CalculateStandaloneLayout(standalone, availableWidth)
+            : compact ? CalculateCompactPluginLayout(sessions.Count > 1 ? 208 : sessions.Count > 0 ? 180 : 112,
+                Math.Min(680, availableWidth), sessions.Count) : _compactLayout;
         double compactWidth = compactLayout.Width;
         double width = Math.Min(availableWidth, compact ? compactWidth : _view == IslandView.ControlCenter ? 356 :
             _view is IslandView.Settings or IslandView.PluginSettings ? 400 : cards.Count > 1 ? 680 : 400);
@@ -373,6 +376,7 @@ public partial class MainWindow : Window
                 PageDots.ItemsSource = Enumerable.Range(0, pageCount).Select(i => Brush(i == page ? "#D5D5DC" : "#41414B")).ToArray();
             }
             _compactLayout = compactLayout;
+            _standaloneComponent = standalone;
             RenderCompact(sessions);
             PresentPluginViews(compact, activity, pageOverride, width, height);
             var scale = VisualTreeHelper.GetDpi(this);
@@ -397,12 +401,17 @@ public partial class MainWindow : Window
     private void RenderCompact(IReadOnlyList<MediaSessionSnapshot> sessions)
     {
         var primary = sessions.FirstOrDefault();
+        bool standalone = _standaloneComponent is not null;
+        bool standaloneMedia = _standaloneComponent?.Key == "builtin:media";
         bool playing = sessions.Any(s => s.IsPlaying);
-        bool cover = primary is not null && _compactLayout.MediaDetail != CompactMediaDetail.Clock;
+        bool cover = primary is not null && (standalone ? standaloneMedia : _compactLayout.MediaDetail != CompactMediaDetail.Clock);
         SetVisible(CompactCovers, cover);
-        CompactCovers.Width = _compactLayout.MediaDetail == CompactMediaDetail.Full && sessions.Count > 1 ? 48 : 28;
-        SetVisible(SecondCover, sessions.Count > 1 && _compactLayout.MediaDetail == CompactMediaDetail.Full);
-        SetVisible(AudioBars, sessions.Count > 0 && _compactLayout.MediaDetail == CompactMediaDetail.Full);
+        CompactCovers.Width = !standalone && _compactLayout.MediaDetail == CompactMediaDetail.Full && sessions.Count > 1 ? 48 : 28;
+        Grid.SetColumnSpan(CompactCovers, standaloneMedia ? 3 : 1);
+        CompactCovers.HorizontalAlignment = standaloneMedia ? HorizontalAlignment.Center : HorizontalAlignment.Stretch;
+        SetVisible(SecondCover, !standalone && sessions.Count > 1 && _compactLayout.MediaDetail == CompactMediaDetail.Full);
+        SetVisible(AudioBars, !standalone && sessions.Count > 0 && _compactLayout.MediaDetail == CompactMediaDetail.Full);
+        SetVisible(ClockLabel, !standalone || _standaloneComponent?.Key == "builtin:clock");
         Grid.SetColumn(ClockLabel, cover ? 2 : 0);
         Grid.SetColumnSpan(ClockLabel, cover ? 1 : 3);
         ClockLabel.FontSize = cover ? 14 : 16;
@@ -420,6 +429,7 @@ public partial class MainWindow : Window
             AudioBar1.Background = AudioBar2.Background = AudioBar3.Background = accent;
         }
         bool animate = playing && AudioBars.Visibility == Visibility.Visible && CompactView.Visibility == Visibility.Visible &&
+            _standaloneComponent is null && SelectedPluginView("idle.content") is null &&
             SystemParameters.ClientAreaAnimation && !_settings.Quiet;
         if (_audioAnimating != animate)
         {
@@ -485,6 +495,9 @@ public partial class MainWindow : Window
     }
     private void OpenActivity()
     {
+        // The entire single-component capsule shares the selected plugin's navigation target.
+        if (_view == IslandView.Automatic && _scheduler.TotalCount == 0 &&
+            _standaloneComponent?.View is { } widget && TryOpenPluginActivity(widget.PluginId)) return;
         bool openingPlugin = _view == IslandView.Automatic && _scheduler.VisibleItems.FirstOrDefault()?.Kind == IslandEventKind.Plugin;
         bool openingNotification = _view == IslandView.Automatic && _scheduler.VisibleItems.FirstOrDefault()?.Kind == IslandEventKind.Notification;
         if (openingPlugin)

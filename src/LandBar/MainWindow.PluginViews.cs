@@ -112,13 +112,17 @@ public partial class MainWindow
 
     private void PresentPluginViews(bool compact, bool activity, PluginView? page, double width, double height)
     {
+        bool standalone = compact && _standaloneComponent is not null;
+        double margin = standalone ? (_compactLayout.Width - _compactLayout.CenterWidth) / 2 - 1 : 12;
+        CompactView.Margin = new Thickness(margin, 0, margin, 0);
         CompactLeftColumn.Width = new GridLength(compact ? _compactLayout.LeftWidth : 0);
         CompactRightColumn.Width = new GridLength(compact ? _compactLayout.RightWidth : 0);
         PresentSlot(PluginIdleLeft, compact && _compactLayout.ShowLeft ? SelectedPluginView("idle.left") : null, 64, 36);
         PresentSlot(PluginIdleRight, compact && _compactLayout.ShowRight ? SelectedPluginView("idle.right") : null, 64, 36);
-        var idleContent = compact ? SelectedPluginView("idle.content") : null;
+        var idleContent = compact && !standalone ? SelectedPluginView("idle.content") : null;
         PresentSlot(PluginIdleContent, idleContent, Math.Max(1, _compactLayout.CenterWidth), 36);
-        SetVisible(BuiltinCompactView, idleContent is null);
+        PresentSlot(PluginStandalone, standalone ? _standaloneComponent?.View : null, Math.Max(1, _compactLayout.CenterWidth), 36);
+        SetVisible(BuiltinCompactView, idleContent is null && (!standalone || _standaloneComponent?.View is null));
         bool customActivity = activity && _view == IslandView.Activity && page is not null;
         SetVisible(ActivityOverrideScroll, customActivity);
         if (customActivity)
@@ -151,19 +155,22 @@ public partial class MainWindow
     {
         if ((sender as FrameworkElement)?.Tag is not string key) return;
         var widget = CurrentPluginViews.FirstOrDefault(view => view.StableKey == key);
-        var tab = PluginTabs.FirstOrDefault(tab => tab.PluginId == widget?.PluginId);
-        if (tab is null) OpenActivity();
-        else
-        {
-            _activePluginTabKey = tab.Key; _pluginsTab = true; _notificationsTab = false;
-            ChangeView(IslandView.Activity);
-        }
+        if (!TryOpenPluginActivity(widget?.PluginId)) OpenActivity();
         e.Handled = true;
+    }
+
+    private bool TryOpenPluginActivity(string? pluginId)
+    {
+        var tab = PluginTabs.FirstOrDefault(tab => tab.PluginId == pluginId);
+        if (tab is null) return false;
+        _activePluginTabKey = tab.Key; _pluginsTab = true; _notificationsTab = false;
+        ChangeView(IslandView.Activity);
+        return true;
     }
 
     private void ConfigureViewPresenters()
     {
-        foreach (var presenter in new[] { PluginIdleLeft, PluginIdleRight, PluginIdleContent, ActivityOverrideContent, PageOverrideContent })
+        foreach (var presenter in new[] { PluginIdleLeft, PluginIdleRight, PluginIdleContent, PluginStandalone, ActivityOverrideContent, PageOverrideContent })
             presenter.ActionRequested += async action =>
             {
                 if (presenter.View is not { } view || _plugins is null) return;
@@ -307,8 +314,8 @@ public partial class MainWindow
 
     private void DisposePluginViews()
     {
-        foreach (var presenter in new[] { PluginIdleLeft, PluginIdleRight, PluginIdleContent, ActivityOverrideContent, PageOverrideContent }) presenter.Dispose();
-        _measureLeft.Dispose(); _measureRight.Dispose(); _measureCenter.Dispose();
+        foreach (var presenter in new[] { PluginIdleLeft, PluginIdleRight, PluginIdleContent, PluginStandalone, ActivityOverrideContent, PageOverrideContent }) presenter.Dispose();
+        _measureLeft.Dispose(); _measureRight.Dispose(); _measureCenter.Dispose(); _measureStandalone.Dispose();
     }
     private static string ShortText(string value, int limit) => value[..Math.Min(value.Length, limit)];
 }

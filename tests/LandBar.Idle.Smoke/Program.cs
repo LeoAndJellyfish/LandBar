@@ -59,6 +59,7 @@ internal static class Program
         private async Task Scenarios()
         {
             ((AppSettings)Field("_settings").GetValue(_window)!).AutoCollapseSeconds = 0;
+            ((AppSettings)Field("_settings").GetValue(_window)!).ShrinkMode = false;
             Invoke("ApplyAutoCollapseSetting");
             await Task.Delay(800);
             _window.Left = -3000; _window.Top = -3000;

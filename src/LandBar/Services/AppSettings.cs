@@ -9,6 +9,8 @@ public sealed class AppSettings
     public List<string> EnabledPluginIds { get; set; } = [];
     public bool EnablePluginViews { get; set; } = true;
     public Dictionary<string, string> PluginViewBindings { get; set; } = new(StringComparer.Ordinal);
+    public bool ShrinkMode { get; set; }
+    public string ShrinkComponent { get; set; } = "builtin:clock";
     private int _autoCollapseSeconds = 5;
     /// <summary>Zero keeps the island open; older settings files retain the five-second default.</summary>
     public int AutoCollapseSeconds

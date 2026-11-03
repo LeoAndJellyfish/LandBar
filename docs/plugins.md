@@ -9,6 +9,7 @@ LandBar 插件是本机独立程序，通过标准输入和标准输出交换 UT
 3. 刷新列表，查看插件名称、说明和状态，再手动启用。
 4. 插件发布的独立标签自动出现在活动页，标题由插件指定。旧卡片插件以自己的显示名称形成单独标签。
 5. 收起态组件在管理页选择“左侧”或“右侧”；固定位置的组件显示其允许位置。页面替换点击“使用”，点击“还原”取消该位置的选择。
+6. 在“设置 → 收缩模式”中可选择常态仅显示一个组件：时钟、播放器或插件组件。该选择独立于普通布局的左右绑定。
 
 插件目录为 `%LOCALAPPDATA%\LandBar\Plugins`。每个插件占用一个直接子目录，其中必须有 `plugin.json`；每次扫描最多读取 128 个子目录。新插件默认停用，已启用插件的选择保存在 LandBar 设置中。
 
@@ -81,7 +82,7 @@ PowerShell 示例中的 `-ExecutionPolicy Bypass` 作用于该子进程。开发
 启动后，宿主首先发送：
 
 ```json
-{"type":"hello","protocolVersion":1,"features":["cards","views","contexts","tabs","sprites","widgetPlacement"]}
+{"type":"hello","protocolVersion":1,"features":["cards","views","contexts","tabs","sprites","widgetPlacement","standaloneWidgets"]}
 ```
 
 插件须在 5 秒内回复相同的协议版本，之后再提交卡片或视图：
@@ -90,7 +91,7 @@ PowerShell 示例中的 `-ExecutionPolicy Bypass` 作用于该子进程。开发
 {"type":"hello","protocolVersion":1}
 ```
 
-宿主同时设置环境变量 `LANDBAR_PROTOCOL_VERSION=1`。插件运行期间应持续读取标准输入，及时处理操作和退出请求。宿主 `features` 列出可用扩展；使用声明式界面的插件可先检查 `views` 和 `tabs`，侧边位置声明对应 `widgetPlacement`。较早宿主省略该字段时，插件可回退至卡片接口。
+宿主同时设置环境变量 `LANDBAR_PROTOCOL_VERSION=1`。插件运行期间应持续读取标准输入，及时处理操作和退出请求。宿主 `features` 列出可用扩展；使用声明式界面的插件可先检查 `views` 和 `tabs`，侧边位置声明对应 `widgetPlacement`，收缩模式的独立组件对应 `standaloneWidgets`。较早宿主省略该字段时，插件可回退至卡片接口。
 
 ## 声明式视图与独立标签
 
@@ -168,6 +169,34 @@ PowerShell 示例中的 `-ExecutionPolicy Bypass` 作用于该子进程。开发
 
 宿主分别按左右组件的实际尺寸分配空间，关闭或撤回的组件立即释放对应侧的宽度和间距。时钟、媒体或自定义主体在剩余区域内布局，整个岛继续围绕屏幕顶部中心伸缩。组件同时存在于时钟和媒体紧凑形态中；可用宽度不足时，宿主先简化内置媒体内容，再按空间隐藏侧边组件，避免组件重叠或局部裁断。
 
+### 收缩模式与独立组件
+
+收缩模式由用户在设置中开启，常态只显示所选的一个组件。时钟、播放器与插件组件共用选择列表。插件的 `idle.widget`、`idle.left`、`idle.right` 和 `idle.content` 均可单独显示，无需先绑定普通布局的位置；活动标签和页面替换不进入该列表。
+
+`view` 顶层可选字段 `allowStandalone` 控制独立显示资格：
+
+```json
+{
+  "type": "view",
+  "id": "quota-ring",
+  "slot": "idle.widget",
+  "title": "Codex 额度",
+  "placement": {"defaultSide":"right","allowedSides":["right"]},
+  "allowStandalone": true,
+  "root": {"type":"ring","width":28,"height":28,"value":0.75,"text":"75","fontSize":12}
+}
+```
+
+| 字段 | 要求 |
+| --- | --- |
+| `allowStandalone` | 可选布尔值，缺省为 `true`；仅适用于四个 `idle.*` 插槽 |
+
+旧组件省略该字段即可继续参与收缩模式。组件依赖周边内容或仅适合侧边时，应显式填写 `false`。禁止在活动标签或页面替换中声明此字段，包括 `false`；类型错误或重复字段会触发协议错误。协议版本继续使用 `1`，宿主通过 `standaloneWidgets` 功能标记公布支持情况。
+
+`placement.allowedSides` 约束普通布局的左右位置。收缩模式使用独立居中的位置，由用户明确选择；固定左侧或右侧的组件默认也允许独立显示，开发者可通过 `allowStandalone:false` 拒绝独立显示。原有根节点尺寸上限继续生效：侧边组件最大 64 × 36 DIP，`idle.content` 最大 400 × 36 DIP。宿主按实际内容尺寸收缩外壳、保留点击区域，并沿顶部中心展开和收起。
+
+独立选择与左右绑定分别保存。关闭收缩模式后恢复普通布局；插件停用、故障、撤回视图、禁用插件界面或将 `allowStandalone` 改为 `false` 时，常态回退到时钟。播放器无可用媒体时也显示时钟。宿主保留原选择，组件恢复后自动继续显示，视图更新不会主动展开岛。
+
 ### 旧版侧边插件迁移
 
 v0.6.0 要求侧边视图显式声明位置。旧消息缺少 `placement` 时，宿主报告协议错误并撤回该插件的视图。
@@ -180,7 +209,7 @@ v0.6.0 要求侧边视图显式声明位置。旧消息缺少 `placement` 时，
 2. 从新版 `app/PluginExamples/<示例名>` 复制相应源码与清单至 `%LOCALAPPDATA%\LandBar\Plugins\<示例名>`。
 3. 刷新插件列表并重新启用，在管理页选择允许的左侧或右侧。
 
-相同 ID 的 `view` 完整替换原视图；节点、标题和位置声明相同时，宿主保留已有呈现。视图更新本身不触发自动弹出。每插件最多保留 12 个视图，宿主总计最多 48 个。视图无 TTL，持续存在至主动撤回或该次运行结束：
+相同 ID 的 `view` 完整替换原视图；节点、标题、位置声明和独立显示资格相同时，宿主保留已有呈现。`allowStandalone` 单独改变也会刷新视图。视图更新本身不触发自动弹出。每插件最多保留 12 个视图，宿主总计最多 48 个。视图无 TTL，持续存在至主动撤回或该次运行结束：
 
 ```json
 {"type":"removeView","id":"dashboard"}

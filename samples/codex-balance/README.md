@@ -11,6 +11,8 @@
 
 插件默认停用。若本机只有 `python.exe`，可将插件目录中 `plugin.json` 的 `command` 改为实际 Python 可执行文件，`arguments` 改为 `["-u","plugin.py"]`。修改后停用、重新启用插件。
 
+支持收缩模式的 LandBar 可在“控制中心 → 设置”开启“收缩模式”，选择“Codex 额度”，常态仅显示额度圆环。此选择无需先绑定左右侧，点击圆环仍进入“Codex”标签。停用插件时显示时钟，重新启用后恢复圆环；关闭收缩模式后恢复原布局。圆环视图显式声明 `allowStandalone: true`，普通布局继续支持左右两侧。
+
 ## Codex 路径
 
 程序优先读取可选环境变量 `LANDBAR_CODEX_PATH`，其值须为本机 `codex.exe` 的完整路径；随后检查 `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin\codex.exe`、PATH 中的原生程序，以及 npm 安装目录内的 Windows 平台程序。插件直接启动原生程序，路径搜索失败时会在标签页提示。

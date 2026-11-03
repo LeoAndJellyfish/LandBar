@@ -344,6 +344,7 @@ internal static class ViewFixture
 {
     internal static async Task<int> Run(string mode)
     {
+        if (mode.StartsWith("view-standalone-", StringComparison.Ordinal)) return await StandaloneFixture.Run(mode);
         if (mode.StartsWith("view-placement-", StringComparison.Ordinal)) return await PlacementFixture.Run(mode);
         if (mode == "view-tabs")
         {

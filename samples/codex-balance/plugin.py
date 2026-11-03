@@ -101,7 +101,8 @@ def make_views(snapshot, failure, now=None):
     fetched = snapshot.get("fetchedAt") if snapshot else None
     stale = bool(failure) or bool(finite(fetched) and now - fetched > 150)
     color = "#85858F" if stale or lowest is None else "#E2B87C" if lowest <= 15 else "#BEDDC9"
-    compact = {"type": "view", "id": "quota-ring", "slot": "idle.widget",
+    compact = {"type": "view", "id": "quota-ring", "slot": "idle.widget", "title": "Codex 额度",
+               "allowStandalone": True,
                "placement": {"defaultSide": "right", "allowedSides": ["left", "right"]},
                "root": ring(0 if lowest is None else lowest / 100,
                             "—" if lowest is None else str(int(round(lowest))), 28, color)}
