@@ -25,17 +25,18 @@ Plugins/
    └─ plugin.ps1
 ```
 
-三个公开示例的源码随发布包位于 `app/PluginExamples`。计时器和像素伙伴使用 Windows 自带的 PowerShell 5.1；Codex 额度示例需要 Python 3.10+ 和已通过 ChatGPT 登录的 Codex CLI：
+公开示例的源码随发布包位于 `app/PluginExamples`。计时器和像素伙伴使用 Windows 自带的 PowerShell 5.1。额度示例需要 Python 3.10+ 及对应 CLI 的账号登录。
 
 | 示例 | 功能 |
 | --- | --- |
 | [专注计时](https://github.com/LeoAndJellyfish/LandBar/tree/main/samples/focus-timer) | 25 分钟倒计时、暂停／继续、重置与 10 秒演示，使用卡片协议 |
 | [像素伙伴](https://github.com/LeoAndJellyfish/LandBar/tree/main/samples/pixel-pet) | 可选左右侧的收起态像素动画、独立标签和配色切换，使用声明式视图协议 |
 | [Codex 额度](https://github.com/LeoAndJellyfish/LandBar/tree/main/samples/codex-balance) | 套餐剩余额度、重置时间、额外积分、独立标签及左右侧圆环，使用本机 Codex app-server |
+| [Gemini 额度](https://github.com/LeoAndJellyfish/LandBar/tree/main/samples/gemini-balance) | Gemini 套餐剩余额度、重置时间、额外 AI 积分及左右侧圆环，使用本机 Antigravity CLI，自 0.8.0 起随包提供 |
 
 安装示例后仍需手动启用。像素伙伴的独立标签自动出现，收起态动画需单独选择“左侧”或“右侧”。
 
-Codex 示例的依赖、登录检查和字段说明见 [示例 README](https://github.com/LeoAndJellyfish/LandBar/blob/main/samples/codex-balance/README.md)。额度来自安装者自己的 Codex CLI；发布文件包含通用程序与清单。额度快照保存在插件进程内存中，退出后清除。
+额度来自安装者本机 CLI 的当前登录。额度快照保存在插件进程内存中，退出后清除。 [Codex 示例](https://github.com/LeoAndJellyfish/LandBar/blob/main/samples/codex-balance/README.md) · [Gemini 示例](https://github.com/LeoAndJellyfish/LandBar/blob/main/samples/gemini-balance/README.md)
 
 插件停止或撤回视图后，对应页面恢复内置显示，独立标签消失。插件管理的“停用插件界面”可统一隐藏声明式视图；插件程序和原有卡片继续运行。托盘菜单始终提供“恢复内置界面”和内置插件管理入口，便于撤销控制中心、设置或插件管理页面的替换。
 

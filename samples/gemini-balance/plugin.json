@@ -1,0 +1,9 @@
+{
+  "id": "gemini-balance",
+  "name": "Gemini 额度",
+  "version": "1.0.0",
+  "description": "查看 Antigravity 当前账号的 Gemini 套餐额度、额外 AI 积分及重置时间。",
+  "command": "py.exe",
+  "arguments": ["-3", "-u", "plugin.py"],
+  "protocolVersion": 1
+}

@@ -24,6 +24,8 @@ def approved_plugin_files(version):
         providers["pixel-pet"] = ("plugin.json", "plugin.ps1", "README.md")
     if version >= (0, 6, 0):
         providers["codex-balance"] = ("plugin.json", "plugin.py", "README.md")
+    if version >= (0, 8, 0):
+        providers["gemini-balance"] = ("plugin.json", "plugin.py", "README.md")
     return {f"app/PluginExamples/{provider}/{filename}"
             for provider, filenames in providers.items() for filename in filenames}
 
@@ -33,7 +35,7 @@ def verify_plugin_examples(archive, version, check):
     actual = {name for name in archive.namelist() if name.casefold().startswith("app/pluginexamples/")}
     check("Only exact approved public plugin files are bundled", actual == expected,
           {"missing": sorted(expected - actual), "unexpected": sorted(actual - expected)})
-    for provider in ("focus-timer", "pixel-pet", "codex-balance"):
+    for provider in ("focus-timer", "pixel-pet", "codex-balance", "gemini-balance"):
         prefix = f"app/PluginExamples/{provider}/"
         if prefix + "plugin.json" not in expected:
             continue
@@ -42,13 +44,13 @@ def verify_plugin_examples(archive, version, check):
         manifest = json.loads(manifest_bytes.decode("utf-8-sig"))
         check(f"{provider} declares supported protocol", manifest.get("id") == provider and
               manifest.get("protocolVersion") == 1)
-        if provider == "codex-balance":
-            check("Codex example uses a portable Python launcher", manifest.get("command") == "py.exe" and
+        if prefix + "plugin.py" in expected:
+            check(f"{provider} uses a portable Python launcher", manifest.get("command") == "py.exe" and
                   manifest.get("arguments") == ["-3", "-u", "plugin.py"])
             source = archive.read(prefix + "plugin.py")
-            check("Codex example source size", 0 < len(source) <= 128 * 1024)
-            ast.parse(source.decode("utf-8-sig"), filename="codex-balance/plugin.py")
-            check("Codex example contains valid Python source", True)
+            check(f"{provider} source size", 0 < len(source) <= 128 * 1024)
+            ast.parse(source.decode("utf-8-sig"), filename=provider + "/plugin.py")
+            check(f"{provider} contains valid Python source", True)
         else:
             check(f"{provider} uses Windows PowerShell", manifest.get("command") == "powershell.exe")
             check(f"{provider} preserves PowerShell encoding",

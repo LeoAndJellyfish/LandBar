@@ -83,13 +83,14 @@ LandBar 在桌面顶部显示一个紧凑胶囊。空闲时显示居中时钟，
 | 专注计时 | 倒计时、暂停、继续和重置 | Windows PowerShell 5.1 |
 | 像素伙伴 | 左右侧像素动画、独立标签和配色切换 | Windows PowerShell 5.1 |
 | [Codex 额度](https://github.com/LeoAndJellyfish/LandBar/blob/main/samples/codex-balance/README.md) | 套餐剩余额度、重置时间、额外积分和侧边圆环 | Python 3.10+、Codex CLI、ChatGPT 登录 |
+| [Gemini 额度](https://github.com/LeoAndJellyfish/LandBar/blob/main/samples/gemini-balance/README.md) | Gemini 套餐剩余额度、重置时间、额外 AI 积分和侧边圆环 | Python 3.10+、Antigravity CLI 1.1.11+、Google 登录 |
 
 <p align="center">
   <img src="docs/images/codex-preview.png" width="384" alt="Codex 额度示例：两个套餐窗口、额外积分与刷新按钮，画面数据均为合成示例">
 </p>
 
 1. 打开“控制中心 → 插件管理”，选择需要的示例，安装后手动启用。
-2. 插件的独立标签自动出现。Codex 示例读取当前使用者本机 Codex CLI 返回的额度信息；先完成示例文档中的环境检查。
+2. 插件的独立标签自动出现。额度示例使用本机 CLI 的当前登录账号，安装和登录要求见各示例说明。
 3. 在“界面与空闲插槽”中为收起态组件选择“左侧”或“右侧”；固定侧边按插件声明显示。页面替换点击“使用”。
 4. 点击已选中的侧别移除组件；页面替换点击“还原”。托盘菜单的“恢复内置界面”可停用全部界面替换。
 

@@ -6,6 +6,9 @@ $workspacePath = Split-Path $PSScriptRoot -Parent
 Write-Host 'Running Codex public sample tests with synthetic app-server data'
 & python -m unittest discover -s (Join-Path $workspacePath 'tests/LandBar.CodexPlugin.Tests') -p 'test_*.py'
 if ($LASTEXITCODE -ne 0) { throw "Codex public sample tests failed with exit code $LASTEXITCODE." }
+Write-Host 'Running Gemini public sample tests with synthetic Antigravity CLI data'
+& python -m unittest discover -s (Join-Path $workspacePath 'tests/LandBar.GeminiPlugin.Tests') -p 'test_*.py'
+if ($LASTEXITCODE -ne 0) { throw "Gemini public sample tests failed with exit code $LASTEXITCODE." }
 Write-Host 'Running public example archive checks'
 & python -m unittest discover -s (Join-Path $workspacePath 'tests/LandBar.Release.Tests') -p 'test_*.py'
 if ($LASTEXITCODE -ne 0) { throw "Public example archive checks failed with exit code $LASTEXITCODE." }

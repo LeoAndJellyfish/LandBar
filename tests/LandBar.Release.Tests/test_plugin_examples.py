@@ -13,13 +13,13 @@ VERIFY = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(VERIFY)
 
 
-def fixture(version=(0, 6, 0)):
+def fixture(version=(0, 8, 0)):
     result = {}
     for name in VERIFY.approved_plugin_files(version):
         provider = name.split("/")[2]
         if name.endswith("plugin.json"):
             manifest = {"id": provider, "protocolVersion": 1, "command": "powershell.exe", "arguments": []}
-            if provider == "codex-balance":
+            if provider in ("codex-balance", "gemini-balance"):
                 manifest.update(command="py.exe", arguments=["-3", "-u", "plugin.py"])
             result[name] = json.dumps(manifest).encode()
         elif name.endswith("plugin.ps1"):
@@ -32,7 +32,7 @@ def fixture(version=(0, 6, 0)):
 
 
 class PluginArchiveChecks(unittest.TestCase):
-    def verify(self, files, version=(0, 6, 0)):
+    def verify(self, files, version=(0, 8, 0)):
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w") as archive:
             for name, data in files.items():
@@ -46,13 +46,13 @@ class PluginArchiveChecks(unittest.TestCase):
         with zipfile.ZipFile(buffer) as archive:
             VERIFY.verify_plugin_examples(archive, version, check)
 
-    def test_current_release_requires_exactly_three_public_examples(self):
+    def test_current_version_requires_exactly_four_public_examples(self):
         files = fixture()
-        self.assertEqual(9, len(files))
+        self.assertEqual(12, len(files))
         self.verify(files)
 
     def test_older_versions_retain_their_original_example_sets(self):
-        for version, count in (((0, 3, 10), 0), ((0, 4, 0), 3), ((0, 5, 1), 6)):
+        for version, count in (((0, 3, 10), 0), ((0, 4, 0), 3), ((0, 5, 1), 6), ((0, 7, 1), 9)):
             with self.subTest(version=version):
                 files = fixture(version)
                 self.assertEqual(count, len(files))
@@ -63,6 +63,14 @@ class PluginArchiveChecks(unittest.TestCase):
         del files["app/PluginExamples/codex-balance/plugin.py"]
         with self.assertRaisesRegex(ValueError, "exact approved public plugin files"):
             self.verify(files)
+
+    def test_gemini_is_required_only_from_080(self):
+        previous = fixture((0, 7, 1))
+        self.verify(previous, (0, 7, 1))
+        for files, version in ((previous, (0, 8, 0)), (fixture(), (0, 7, 1))):
+            with self.subTest(version=version):
+                with self.assertRaisesRegex(ValueError, "exact approved public plugin files"):
+                    self.verify(files, version)
 
     def test_private_files_and_nested_programs_are_rejected(self):
         for extra in ("auth.json", "settings.json", "plugin.py.bak", "helper.exe", "__pycache__/plugin.pyc", "nested/plugin.py"):
@@ -113,7 +121,7 @@ class PluginArchiveChecks(unittest.TestCase):
 
     def test_repository_samples_match_the_release_contract(self):
         files = {}
-        for path in VERIFY.approved_plugin_files((0, 6, 0)):
+        for path in VERIFY.approved_plugin_files((0, 8, 0)):
             source = ROOT / "samples" / Path(path).relative_to("app/PluginExamples")
             files[path] = source.read_bytes()
         self.verify(files)

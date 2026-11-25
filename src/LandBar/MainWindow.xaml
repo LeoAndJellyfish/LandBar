@@ -419,7 +419,11 @@
                 <Button Content="计时器示例" Tag="focus-timer" Click="InstallPluginExample_Click" Height="40" Margin="0,0,4,0" Padding="8,0" FontSize="14"/>
                 <Button Grid.Column="1" Content="像素伙伴示例" Tag="pixel-pet" Click="InstallPluginExample_Click" Height="40" Margin="4,0,0,0" Padding="8,0" FontSize="14"/>
               </Grid>
-              <Button Content="Codex 额度示例" Tag="codex-balance" Click="InstallPluginExample_Click" Height="40" Margin="0,0,0,8" Padding="8,0" FontSize="14" ToolTip="需要 Python 3.10+ 和已登录的 Codex CLI"/>
+              <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                <Button Content="Codex 额度示例" Tag="codex-balance" Click="InstallPluginExample_Click" Height="40" Margin="0,0,4,0" Padding="8,0" FontSize="14" ToolTip="需要 Python 3.10+ 和已登录的 Codex CLI"/>
+                <Button Grid.Column="1" Content="Gemini 额度示例" Tag="gemini-balance" Click="InstallPluginExample_Click" Height="40" Margin="4,0,0,0" Padding="8,0" FontSize="14" ToolTip="需要 Python 3.10+ 和已登录的 Antigravity CLI"/>
+              </Grid>
               <TextBlock x:Name="PluginManagementHint" Foreground="#BEDDC9" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed"/>
               <ItemsControl x:Name="PluginList">
                 <ItemsControl.ItemTemplate>

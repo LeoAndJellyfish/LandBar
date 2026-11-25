@@ -35,7 +35,7 @@
 Release 同时提供 ZIP 和 `SHA256SUMS.txt`。在 PowerShell 中计算文件哈希，与同次 Release 的校验记录比较：
 
 ```powershell
-Get-FileHash .\LandBar-v0.7.1-win-x64.zip -Algorithm SHA256
+Get-FileHash .\LandBar-v0.8.0-win-x64.zip -Algorithm SHA256
 ```
 
 文件名应对应实际下载的版本。
@@ -62,7 +62,7 @@ LandBar 读取应用实际提交到 Windows 通知中心的消息，从程序启
 
 ### 示例插件
 
-“控制中心 → 插件管理”可安装专注计时、像素伙伴和 Codex 额度示例。安装后手动启用；收起态组件另选左侧或右侧。Codex 示例需要 Python 3.10+、Codex CLI 和当前用户的 ChatGPT 登录，具体安装检查见 [示例说明](https://github.com/LeoAndJellyfish/LandBar/blob/main/samples/codex-balance/README.md)。
+“控制中心 → 插件管理”可安装专注计时、像素伙伴和额度示例。安装后手动启用，并为收起态组件选择左侧或右侧。额度示例需要 Python 3.10+ 及对应 CLI 的账号登录。Gemini 额度示例自 LandBar 0.8.0 起随包提供。 [Codex 安装说明](https://github.com/LeoAndJellyfish/LandBar/blob/main/samples/codex-balance/README.md) · [Gemini 安装说明](https://github.com/LeoAndJellyfish/LandBar/blob/main/samples/gemini-balance/README.md)
 
 v0.6.0 的侧边插件必须声明支持位置。已安装的旧版像素伙伴等示例按 [迁移说明](plugins.md#旧版侧边插件迁移)更新，用户自行修改的源码应先保留副本。
 

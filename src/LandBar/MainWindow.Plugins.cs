@@ -204,7 +204,7 @@ public partial class MainWindow
         string[] files = exampleId switch
         {
             "focus-timer" or "pixel-pet" => ["plugin.json", "plugin.ps1", "README.md"],
-            "codex-balance" => ["plugin.json", "plugin.py", "README.md"],
+            "codex-balance" or "gemini-balance" => ["plugin.json", "plugin.py", "README.md"],
             _ => []
         };
         if (files.Length == 0) return;

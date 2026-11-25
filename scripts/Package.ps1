@@ -28,7 +28,8 @@ $appDestination = Join-Path $payloadPath 'app'
 $approvedExampleFiles = @(
     'PluginExamples\focus-timer\plugin.json', 'PluginExamples\focus-timer\plugin.ps1', 'PluginExamples\focus-timer\README.md',
     'PluginExamples\pixel-pet\plugin.json', 'PluginExamples\pixel-pet\plugin.ps1', 'PluginExamples\pixel-pet\README.md',
-    'PluginExamples\codex-balance\plugin.json', 'PluginExamples\codex-balance\plugin.py', 'PluginExamples\codex-balance\README.md'
+    'PluginExamples\codex-balance\plugin.json', 'PluginExamples\codex-balance\plugin.py', 'PluginExamples\codex-balance\README.md',
+    'PluginExamples\gemini-balance\plugin.json', 'PluginExamples\gemini-balance\plugin.py', 'PluginExamples\gemini-balance\README.md'
 )
 foreach ($file in Get-ChildItem -LiteralPath $appSource -Recurse -File) {
     $relative = $file.FullName.Substring($appSource.Length + 1)
