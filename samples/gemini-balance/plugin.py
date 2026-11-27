@@ -85,6 +85,8 @@ def cli_environment():
     # Print mode can still start OAuth when its session expires. The CLI's
     # non-interactive mode reports that sign-in is needed without opening it.
     environment["AGY_CLI_NONINTERACTIVE_HEADLESS"] = "1"
+    # The updater can spawn its own console even when this process is hidden.
+    environment["AGY_CLI_DISABLE_AUTO_UPDATE"] = "true"
     # Go's proxy lookup uses environment variables. Pass through the configured
     # Windows proxy for this child only when no explicit override was supplied.
     configured = getproxies()

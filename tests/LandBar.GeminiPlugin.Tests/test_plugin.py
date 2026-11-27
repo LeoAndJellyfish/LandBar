@@ -1,6 +1,7 @@
 import datetime as dt
 import importlib.util
 import json
+import os
 from pathlib import Path
 import queue
 import subprocess
@@ -252,6 +253,15 @@ sample.main()
             self.assertEqual("http://explicit.invalid:8080", actual["HTTPS_PROXY"])
             self.assertEqual("http://system.invalid:8080", actual["HTTP_PROXY"])
         self.assertEqual("1", actual["AGY_CLI_NONINTERACTIVE_HEADLESS"])
+
+    def test_background_cli_disables_self_update_only_in_child(self):
+        key = "AGY_CLI_DISABLE_AUTO_UPDATE"
+        command = [sys.executable, "-c", f"import os; print(os.environ[{key!r}])"]
+        with patch.dict(os.environ, {key: "false"}):
+            code, output, errors = PLUGIN.run_cli(command, threading.Event(), 5)
+            self.assertEqual("false", os.environ[key])
+        self.assertEqual(0, code, errors)
+        self.assertEqual(b"true", output.strip())
 
 
 if __name__ == "__main__":

@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -27,6 +29,7 @@ public partial class MainWindow
     {
         try
         {
+            UpgradeGeminiExample(PluginsDirectory, Path.Combine(AppContext.BaseDirectory, "PluginExamples"));
             ConnectPlugins(new PluginManager(PluginsDirectory));
             _plugins!.Discover();
             _ = StartEnabledPluginsAsync();
@@ -35,6 +38,34 @@ public partial class MainWindow
         {
             ShowPluginHint("插件目录不可用：" + ex.GetType().Name);
             Services.AppSettings.WriteDiagnostic(ex.GetType().Name);
+        }
+    }
+
+    private static void UpgradeGeminiExample(string pluginsDirectory, string examplesDirectory)
+    {
+        const string originalHash = "7A30DB29984D2CE3D371AA6E0A698EC89FF4421DAA44E242D48F688BFF5E41D9";
+        string relativePath = Path.Combine("gemini-balance", "plugin.py");
+        string installed = Path.Combine(pluginsDirectory, relativePath);
+        string bundled = Path.Combine(examplesDirectory, relativePath);
+        if (!File.Exists(installed) || !File.Exists(bundled)) return;
+
+        try
+        {
+            // Match the original v0.8.0 script, including copies with Windows line endings.
+            string source = File.ReadAllText(installed).Replace("\r\n", "\n", StringComparison.Ordinal);
+            if (Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source))) != originalHash) return;
+
+            string staging = installed + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                File.Copy(bundled, staging);
+                File.Replace(staging, installed, null);
+            }
+            finally { File.Delete(staging); }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Services.AppSettings.WriteDiagnostic("Gemini example update: " + ex.GetType().Name);
         }
     }
 
